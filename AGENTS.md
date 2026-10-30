@@ -11,6 +11,8 @@ ReadVault is a multi-user PDF library and family Story Time app. Accounts, metad
 - `npm.cmd run build` — production build and type check
 - `npm.cmd run db:migrate` — apply pending migrations from `.env.local`
 - `npm.cmd run db:migrate:prod` — apply migrations using process env
+- `npm.cmd run admin:grant -- <email>` — grant an existing account admin access
+- `npm.cmd run account:reset-link -- <email>` — print a manual one-time reset link (expires in 1 hour)
 - `npm.cmd run db:up` / `db:down` — optional local Postgres on port 5434
 
 ## Stack rules
@@ -21,16 +23,21 @@ ReadVault is a multi-user PDF library and family Story Time app. Accounts, metad
 - Files: Vercel Blob only. Client uploads use `@vercel/blob/client`; server metadata is stored in Postgres.
 - PDF reader: `pdfjs-dist` dynamically imported in `src/components/pdf-reader.tsx`; worker copied by `scripts/copy-pdf-worker.mjs`.
 - PWA: `public/sw.js` registers in production only. Test with `npm run build && npm run start`, not `next dev`.
-- AI: `src/app/api/ai/story/route.ts` uses an optional OpenAI-compatible endpoint. `AI_API_KEY` is server-only. Never expose it client-side.
+- AI: `src/app/api/ai/story/route.ts` resolves the admin-saved key from `app_settings` (encrypted with `SETTINGS_ENCRYPTION_KEY`) and falls back to a server-only `AI_API_KEY`. Enter provider keys in admin Settings, never in client code, logs, or git.
 
 ## Security and data rules
 
-- Every API route and server action must call `getSession()` and scope every query by `session.userId`.
+- Every API route and server action must call `getSession()`/`getCurrentUser()` or `requireActiveUser()` and scope every query by `session.userId`.
 - Never accept a user id from the client.
+- Session-version rule: `getCurrentUser()` loads the user and rejects the JWT when `users.session_version` differs from the token's `sv`. Password changes, reset/invite completion, and Sign out all increment `session_version`. Preserve this check on every authenticated path.
+- Admin authorization: use `requireAdmin()` (active user with `is_admin`). Hiding admin UI is not authorization; Family and AI settings actions must re-check server-side. Accounts with `must_change_password` are not active until the password is changed.
+- Tokens: password reset links expire after 1 hour and invitation links after 24 hours. Both are single-use, stored only as SHA-256 hashes, and a new link invalidates the previous unused link for that purpose. Raw links are returned once and are never emailed; share them manually.
+- Secrets: `SETTINGS_ENCRYPTION_KEY` is a 32-byte base64 server-only key used to encrypt the AI provider key at rest. Never expose `AUTH_SECRET`, `BLOB_READ_WRITE_TOKEN`, `AI_API_KEY`, decrypted keys, reset/invite URLs, or tokens in the browser, logs, git, or chat. Keep `.env.local` and `.local-credentials.txt` uncommitted.
+- AI provider URLs must use HTTPS; localhost/private IPs are blocked and custom hosts require `AI_ALLOWED_HOSTS`. Do not weaken `validateAiBaseUrl`.
+- AI usage: default 10 drafts per user per UTC day, configurable from 1 to 100 in admin Settings. Keep reservation/refund logic atomic.
 - Story/book images and PDFs are Blob URLs; validate ownership before attaching/deleting.
 - Middleware is an optimistic redirect only; server routes still re-check auth.
-- Keep `AUTH_SECRET` and `BLOB_READ_WRITE_TOKEN` out of git.
-- Signups are closed unless `ALLOW_SIGNUPS=true`; set it only for intentional testing. v1 has no email verification or password reset; do not open public signup until those exist.
+- Signups are closed unless `ALLOW_SIGNUPS=true`; set it only for intentional local bootstrap/testing. Never open public signup in production. There is no email delivery or email verification yet; keep accounts invite-only.
 - Blob URLs are currently public-but-unguessable. Do not treat them as private storage; add private Blobs/signed URLs before sensitive use.
 
 ## Story Time rules
@@ -47,7 +54,7 @@ Before a milestone is done:
 1. `npm.cmd test`
 2. `npm.cmd run lint`
 3. `npm.cmd run build`
-4. Smoke-test invitation-only sign-in → PDF upload/read/edit/delete → Story Time create/edit/images/read/delete → sign-out protection.
+4. Smoke-test invitation-only sign-in → PDF upload/read/edit/delete → Story Time create/edit/images/read/delete → Settings password change/sign-out-all → sign-out protection. When account security changes, also verify admin invite/reset links, forced password change, single-use expiry, and session revocation.
 5. For PWA changes, test the production server and reload a cached book offline.
 
 Commit small milestones. Do not commit `.env.local`, `.neon`, Blob tokens, or user data.

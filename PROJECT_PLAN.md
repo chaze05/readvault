@@ -66,5 +66,6 @@ Planning estimate for the full roadmap: 20–32 working days. The local MVP come
 - Accounts complete: email/password signup, login, logout, protected routes, per-user data isolation.
 - Cloud migration complete: Neon Postgres + Vercel Blob replace SQLite/local metadata.
 - Story Time ported from the Codex ZIP: story shelf, original/movie-inspired stories, editor, page reorder/delete, cover/page images, read-aloud, print/save PDF, saved progress, storybook transitions.
-- Optional AI story drafting endpoint added (DeepSeek/OpenAI-compatible); requires `AI_API_KEY`.
-- Next: bookmarks/notes, collections/tags, reader search/outline, email verification/password reset, RLS/private Blob hardening, Story Time offline caching.
+- Optional AI story drafting endpoint added (DeepSeek/OpenAI-compatible); keys are now entered in admin Settings and encrypted with `SETTINGS_ENCRYPTION_KEY`.
+- Account security and settings complete: invitation-only family accounts, admin invite links (24 hours), temporary passwords with forced password change, manual reset links (1 hour), session-version revocation, reading preferences, data export/deletion, and an encrypted AI key with a per-user daily draft limit (default 10, configurable 1–100).
+- Next (Pass 2): bookmarks/favorites and notes, collections/tags, reader search/outline, email delivery/verification, RLS/private Blob hardening, Story Time offline caching.

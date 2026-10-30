@@ -8,14 +8,18 @@ A private, multi-user PDF library and family Story Time app. Sign in, upload and
 ## Features
 
 - Email/password accounts with private per-user libraries.
-- Public home page, invitation-only sign in, and protected app routes.
+- Public home page, invitation-only sign in, and protected app routes; public signup stays closed.
+- Administrators can create family accounts with single-use invitation links or temporary passwords that force a password change at first sign-in.
+- Security settings: change password, sign out all devices, and manual one-time reset links issued by an administrator.
+- Reading preferences (PDF zoom, Story Time text size, reduced motion), data export, and account/content deletion.
 - PDF CRUD: upload, list, search, filter, sort, edit metadata, delete.
 - Duplicate detection by SHA-256 hash per account.
 - PDF.js reader: page navigation, zoom, fit width, fullscreen, keyboard arrows, automatic progress, resume.
 - Story Time: original or movie-inspired stories, multi-page editor, page reorder/delete, cover and page illustrations, read-aloud, print/save PDF.
-- Optional AI story drafting through any OpenAI-compatible API (DeepSeek by default); parent review before saving.
+- Optional AI story drafting through any OpenAI-compatible API (DeepSeek by default), configured in admin Settings with an encrypted key and a per-user daily limit; parent review before saving.
 - PWA: installable app shell and offline reading for PDFs and opened stories.
 - Warm storybook opening curtain and page-turn transitions, with reduced-motion support.
+- Pass 2 bookmarks and favorites are still pending; saved pages, highlights, and notes are not implemented yet.
 
 ## Stack
 
@@ -43,13 +47,24 @@ Requirements: Node.js 22.13+, a Postgres database, and a Vercel Blob token.
    | Variable | Purpose |
    | --- | --- |
    | `DATABASE_URL` | Postgres connection used by the app (Neon or local) |
-   | `ADMIN_DATABASE_URL` | Migration connection (same URL for local) |
+   | `ADMIN_DATABASE_URL` | Migration/CLI connection (same URL for local) |
    | `AUTH_SECRET` | 32+ random characters for session JWTs |
+   | `APP_URL` | Public base URL used in invite and reset links (defaults to `http://localhost:3000`) |
+   | `SETTINGS_ENCRYPTION_KEY` | 32-byte base64 key that encrypts the AI key saved in admin Settings |
    | `BLOB_READ_WRITE_TOKEN` | Vercel Blob read/write token |
    | `GEMINI_MODEL` | Not used by this build |
-   | `AI_API_KEY` | Optional: DeepSeek/OpenAI-compatible key for story drafts |
-   | `AI_BASE_URL` | Optional: `https://api.deepseek.com` or `https://api.openai.com/v1` |
-   | `AI_MODEL` | Optional: `deepseek-chat` or `gpt-4o-mini` |
+   | `AI_ALLOWED_HOSTS` | Optional comma-separated host allowlist for custom AI provider URLs beyond DeepSeek/OpenAI |
+   | `AI_API_KEY` | Optional server-side fallback; normally enter the key in admin Settings instead |
+   | `AI_BASE_URL` | Optional fallback base URL: `https://api.deepseek.com` or `https://api.openai.com/v1` |
+   | `AI_MODEL` | Optional fallback model: `deepseek-chat` or `gpt-4o-mini` |
+
+   Generate a settings encryption key without committing it:
+
+   ```bash
+   node -e "console.log(require('node:crypto').randomBytes(32).toString('base64'))"
+   ```
+
+   Store the output in `.env.local` and the host's production environment. AI provider keys are entered in **Settings → AI story drafts** by an administrator, encrypted with `SETTINGS_ENCRYPTION_KEY`, and never committed to git. The `AI_*` variables are a server-side fallback when no database key is saved.
 
    The current `.env.local` can point at Neon and Blob, or use the optional local Docker database on port 5434.
 
@@ -71,7 +86,13 @@ Requirements: Node.js 22.13+, a Postgres database, and a Vercel Blob token.
    npm.cmd run dev
    ```
 
-5. Open http://localhost:3000, create an account, and upload a PDF.
+5. Open http://localhost:3000. Public signup is closed. On a brand-new local database, temporarily set `ALLOW_SIGNUPS=true` to create the owner account, grant it admin, then remove the flag:
+
+   ```bash
+   npm.cmd run admin:grant -- you@example.com
+   ```
+
+   After that, create family accounts from **Settings → Family**. Restart the dev server after changing environment values.
 
 > The app uses Vercel Blob for all PDF/image storage, including local development. A Blob token is required even when the database is local.
 
@@ -85,15 +106,33 @@ Requirements: Node.js 22.13+, a Postgres database, and a Vercel Blob token.
 | `npm.cmd run lint` | ESLint |
 | `npm.cmd run db:migrate` | Apply pending migrations |
 | `npm.cmd run db:migrate:prod` | Apply migrations using process env (Vercel/Neon) |
+| `npm.cmd run admin:grant -- <email>` | Grant an existing account admin access |
+| `npm.cmd run account:reset-link -- <email>` | Print a manual one-time password reset link (expires in 1 hour) |
 | `npm.cmd run db:up` / `db:down` | Optional local Postgres on port 5434 |
+
+## Accounts and security
+
+- Public signup is closed. Accounts are invitation-only unless `ALLOW_SIGNUPS=true` is set temporarily for local bootstrap or intentional testing.
+- Administrators create family accounts in **Settings → Family** using either a single-use invitation link (valid 24 hours) or a temporary password. Temporary-password accounts must choose a new password before using the app.
+- Password reset and invitation links are issued manually; there is no email delivery. An admin can generate a reset link from **Settings → Family** or with `npm.cmd run account:reset-link -- <email>`. Reset links are valid for 1 hour and work once.
+- Creating a new invite or reset link invalidates the previous unused link of the same purpose. Raw links are shown once; only SHA-256 token hashes are stored.
+- Grant the owner/admin account with `npm.cmd run admin:grant -- <email>`. Admin-only Settings sections (Family and AI story drafts) are re-checked on the server.
+- Sessions are 30-day HS256 JWTs in an HttpOnly, SameSite=Lax cookie, Secure in production. Every request compares the JWT session version with `users.session_version`; changing or resetting a password, or choosing **Sign out all devices**, increments it and invalidates older sessions.
+- Settings also provides reading preferences, data export, and account/content deletion.
+- Pass 2 bookmarks and favorites are still pending; saved pages, highlights, and notes are not implemented yet.
+
+## AI story drafts
+
+- Enter the provider API key in **Settings → AI story drafts** as an administrator. It is write-only in the UI, encrypted at rest with `SETTINGS_ENCRYPTION_KEY`, and never committed to git.
+- DeepSeek and OpenAI presets are built in. Custom providers must use HTTPS and be listed in `AI_ALLOWED_HOSTS`; localhost and private IP hosts are blocked.
+- The daily limit is 10 drafts per user per UTC day by default and is configurable from 1 to 100 in admin Settings. Definitive provider failures that never produced a draft are refunded.
+- `AI_API_KEY` (with optional `AI_BASE_URL`/`AI_MODEL`) remains a server-side environment fallback when no key is saved in the database.
 
 ## Auth and data isolation
 
-- Accounts are invitation-only by default. Signup is closed unless `ALLOW_SIGNUPS=true`; passwords are bcrypt-hashed.
-- Sessions are 30-day HS256 JWTs in an HttpOnly, SameSite=Lax cookie, Secure in production.
-- `src/middleware.ts` protects `/dashboard`, `/library`, `/recent`, `/bookmarks`, `/settings`, `/reader`, and `/story-time`.
-- Every database query and server action scopes rows by the signed-in user id.
-- v1 has no email verification or password reset yet. Add those before opening public signups.
+- Passwords are bcrypt-hashed, and every database query and server action scopes rows by the signed-in user id.
+- `src/middleware.ts` protects `/dashboard`, `/library`, `/recent`, `/bookmarks`, `/settings`, `/reader`, and `/story-time`; server routes still re-check auth.
+- v1 has no email delivery or email verification. Reset and invitation links must be shared manually.
 
 ## Vercel deployment
 
@@ -101,11 +140,14 @@ Production env vars:
 
 - `DATABASE_URL` — Neon pooled connection string
 - `AUTH_SECRET` — 32+ random characters
+- `APP_URL` — public production URL, `https://readvault-ten.vercel.app`, used in manual invite/reset links
+- `SETTINGS_ENCRYPTION_KEY` — 32-byte base64 key; required to save AI settings
 - `BLOB_READ_WRITE_TOKEN` — from the connected Blob store
-- `AI_API_KEY` — optional, enables the Story Time AI draft button
-- `ALLOW_SIGNUPS` — optional; leave unset/false to keep public signup closed
+- `AI_ALLOWED_HOSTS` — optional custom AI provider host allowlist
+- `AI_API_KEY` — optional server fallback; prefer saving the key in admin Settings
+- `ALLOW_SIGNUPS` — leave unset/false to keep public signup closed
 
-The Neon schema was applied with `npm run db:migrate:prod`. Deploy with `vercel --prod` or push to the connected GitHub repository.
+Apply the schema from a trusted machine with `npm.cmd run db:migrate:prod` using those process env values. Deploy with `vercel --prod` or push to the connected GitHub repository.
 
 ## PWA and offline
 

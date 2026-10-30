@@ -5,6 +5,7 @@ import { ArrowLeft, BookOpen } from "lucide-react";
 import { PdfReader } from "@/components/pdf-reader";
 import { getBook } from "@/lib/book-store";
 import { requireActiveUser } from "@/lib/current-user";
+import { getPreferences } from "@/lib/preferences";
 import { isUuid } from "@/lib/uuid";
 
 export const runtime = "nodejs";
@@ -23,6 +24,8 @@ export default async function ReaderPage({
 
   const book = await getBook(user.id, id);
   if (!book) notFound();
+
+  const preferences = await getPreferences(user.id);
 
   return (
     <main className="min-h-screen bg-[#f7f8f4]">
@@ -47,6 +50,7 @@ export default async function ReaderPage({
               fileUrl={book.fileUrl}
               initialPage={book.currentPage}
               initialTotalPages={book.totalPages}
+              initialZoom={preferences.pdfZoom / 100}
               title={book.title}
             />
             <p className="mt-3 text-center text-[11px] text-muted">

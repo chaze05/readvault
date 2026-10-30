@@ -2,6 +2,7 @@ import { notFound, redirect } from "next/navigation";
 
 import { StoryReader } from "@/components/story-reader";
 import { requireActiveUser } from "@/lib/current-user";
+import { getPreferences } from "@/lib/preferences";
 import { getStory } from "@/lib/story-store";
 import { isUuid } from "@/lib/uuid";
 
@@ -22,5 +23,13 @@ export default async function ReadStoryPage({
   const story = await getStory(user.id, id);
   if (!story) notFound();
 
-  return <StoryReader storyId={story.id} initialStory={story} />;
+  const preferences = await getPreferences(user.id);
+
+  return (
+    <StoryReader
+      storyId={story.id}
+      initialStory={story}
+      textSize={preferences.storyTextSize}
+    />
+  );
 }

@@ -1,13 +1,20 @@
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { BookOpen, ShieldCheck, UserRound } from "lucide-react";
+import {
+  BookOpen,
+  ShieldCheck,
+  SlidersHorizontal,
+  UserRound,
+} from "lucide-react";
 
 import { MobileNav } from "@/components/mobile-nav";
 import { AccountSummary } from "@/components/settings/account-summary";
+import { ReadingForm } from "@/components/settings/reading-form";
 import { SecurityForm } from "@/components/settings/security-form";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { Sidebar } from "@/components/sidebar";
 import { getCurrentUser } from "@/lib/current-user";
+import { getPreferences } from "@/lib/preferences";
 import { getSession } from "@/lib/session-cookies";
 
 export const dynamic = "force-dynamic";
@@ -23,6 +30,8 @@ export default async function SettingsPage() {
     const session = await getSession();
     redirect(session ? "/login?expired=1" : "/login");
   }
+
+  const preferences = await getPreferences(user.id);
 
   return (
     <div className="app-shell">
@@ -51,7 +60,8 @@ export default async function SettingsPage() {
                 Settings
               </h1>
               <p className="mb-0 mt-2 text-sm text-muted">
-                Manage your sign-in details and keep your account secure.
+                Manage your sign-in details, security, and reading
+                preferences.
               </p>
             </header>
 
@@ -70,6 +80,14 @@ export default async function SettingsPage() {
                 icon={<ShieldCheck size={20} />}
               >
                 <SecurityForm mustChangePassword={user.mustChangePassword} />
+              </SettingsSection>
+
+              <SettingsSection
+                title="Reading"
+                description="Set how PDFs and Story Time pages open for you."
+                icon={<SlidersHorizontal size={20} />}
+              >
+                <ReadingForm initialPreferences={preferences} />
               </SettingsSection>
             </div>
           </div>

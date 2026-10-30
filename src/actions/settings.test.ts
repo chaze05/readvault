@@ -1,5 +1,9 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
+vi.mock("next/cache", () => ({
+  revalidatePath: vi.fn(),
+}));
+
 vi.mock("next/navigation", () => ({
   redirect: vi.fn(),
 }));
@@ -14,8 +18,13 @@ vi.mock("@/lib/users", () => ({
   updateUserPassword: vi.fn(),
 }));
 
+vi.mock("@/lib/preferences", () => ({
+  updatePreferences: vi.fn(),
+}));
+
 vi.mock("@/lib/session-cookies", () => ({
   clearSessionCookie: vi.fn(),
+  setMotionPreferenceCookie: vi.fn(),
   setSessionCookie: vi.fn(),
 }));
 
@@ -28,13 +37,18 @@ vi.mock("@/lib/password", () => ({
   verifyPassword: vi.fn(),
 }));
 
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/lib/current-user";
-import { clearSessionCookie } from "@/lib/session-cookies";
+import { updatePreferences } from "@/lib/preferences";
+import {
+  clearSessionCookie,
+  setMotionPreferenceCookie,
+} from "@/lib/session-cookies";
 import { incrementSessionVersion } from "@/lib/users";
 
-import { signOutAllAction } from "./settings";
+import { signOutAllAction, updatePreferencesAction } from "./settings";
 
 const user = {
   id: "user-1",
@@ -78,5 +92,92 @@ describe("signOutAllAction", () => {
     expect(clearSessionCookie).not.toHaveBeenCalled();
     expect(redirect).not.toHaveBeenCalled();
     consoleError.mockRestore();
+  });
+});
+
+describe("updatePreferencesAction", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(getCurrentUser).mockResolvedValue(user);
+    vi.mocked(updatePreferences).mockResolvedValue({
+      pdfZoom: 125,
+      storyTextSize: "large",
+      reduceMotion: true,
+    });
+    vi.mocked(setMotionPreferenceCookie).mockResolvedValue(undefined);
+  });
+
+  it("saves preferences for the signed-in user and applies the motion cookie", async () => {
+    const formData = new FormData();
+    formData.set("pdfZoom", "125");
+    formData.set("storyTextSize", "large");
+    formData.set("reduceMotion", "true");
+
+    const result = await updatePreferencesAction(formData);
+
+    expect(updatePreferences).toHaveBeenCalledWith("user-1", {
+      pdfZoom: 125,
+      storyTextSize: "large",
+      reduceMotion: true,
+    });
+    expect(setMotionPreferenceCookie).toHaveBeenCalledWith(true);
+    expect(revalidatePath).toHaveBeenCalledWith("/settings");
+    expect(result).toEqual({
+      ok: true,
+      preferences: {
+        pdfZoom: 125,
+        storyTextSize: "large",
+        reduceMotion: true,
+      },
+    });
+  });
+
+  it("treats an unchecked reduce-motion field as false", async () => {
+    vi.mocked(updatePreferences).mockResolvedValue({
+      pdfZoom: 100,
+      storyTextSize: "medium",
+      reduceMotion: false,
+    });
+    const formData = new FormData();
+    formData.set("pdfZoom", "100");
+    formData.set("storyTextSize", "medium");
+    formData.set("reduceMotion", "false");
+
+    await updatePreferencesAction(formData);
+
+    expect(updatePreferences).toHaveBeenCalledWith("user-1", {
+      pdfZoom: 100,
+      storyTextSize: "medium",
+      reduceMotion: false,
+    });
+    expect(setMotionPreferenceCookie).toHaveBeenCalledWith(false);
+  });
+
+  it("does not save when there is no signed-in user", async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(null);
+    const formData = new FormData();
+    formData.set("pdfZoom", "100");
+    formData.set("storyTextSize", "medium");
+    formData.set("reduceMotion", "false");
+
+    const result = await updatePreferencesAction(formData);
+
+    expect(result).toEqual({
+      error: "Your session has expired. Sign in again to continue.",
+    });
+    expect(updatePreferences).not.toHaveBeenCalled();
+    expect(setMotionPreferenceCookie).not.toHaveBeenCalled();
+  });
+
+  it("rejects zoom values outside the supported set", async () => {
+    const formData = new FormData();
+    formData.set("pdfZoom", "110");
+    formData.set("storyTextSize", "medium");
+    formData.set("reduceMotion", "false");
+
+    const result = await updatePreferencesAction(formData);
+
+    expect(result).toEqual({ error: "Choose valid reading preferences." });
+    expect(updatePreferences).not.toHaveBeenCalled();
   });
 });

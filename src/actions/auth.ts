@@ -1,8 +1,13 @@
 "use server";
 
 import { hashPassword, verifyPassword } from "@/lib/password";
+import { getPreferences } from "@/lib/preferences";
 import { signSession } from "@/lib/session";
-import { clearSessionCookie, setSessionCookie } from "@/lib/session-cookies";
+import {
+  clearSessionCookie,
+  setMotionPreferenceCookie,
+  setSessionCookie,
+} from "@/lib/session-cookies";
 import { createUser, findUserForLogin } from "@/lib/users";
 import { signInSchema, signUpSchema } from "@/lib/validation";
 
@@ -92,6 +97,19 @@ export async function signIn(formData: FormData): Promise<AuthResult> {
       mustChangePassword: user.must_change_password,
     });
     await setSessionCookie(token);
+
+    try {
+      const preferences = await getPreferences(user.id);
+      await setMotionPreferenceCookie(preferences.reduceMotion);
+    } catch (preferenceError) {
+      console.error(
+        "[auth] preferences load failed:",
+        preferenceError instanceof Error
+          ? preferenceError.message
+          : "unknown error"
+      );
+    }
+
     return { ok: true, mustChangePassword: user.must_change_password };
   } catch (error) {
     console.error(

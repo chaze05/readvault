@@ -4,6 +4,11 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/lib/current-user";
+import {
+  deleteAllUserContent,
+  deleteUserAccount,
+  type DeleteContentResult,
+} from "@/lib/data-export";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import {
   updatePreferences,
@@ -30,6 +35,12 @@ const SIGN_OUT_ALL_FAILED_ERROR =
   "Could not sign out all devices. Please try again.";
 const PREFERENCES_UPDATE_FAILED_ERROR =
   "Could not save your reading preferences. Please try again.";
+const CONTENT_DELETE_CONFIRMATION_ERROR =
+  "Type DELETE to confirm deleting all of your content.";
+const CONTENT_DELETE_FAILED_ERROR =
+  "Could not delete all of your content because some stored files could not be removed. Your library was not deleted.";
+const ACCOUNT_DELETE_FAILED_ERROR =
+  "Could not delete your account. Please try again.";
 
 function formString(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -150,4 +161,67 @@ export async function signOutAllAction(): Promise<SignOutAllResult> {
 
   await clearSessionCookie();
   redirect("/login?signout=all");
+}
+
+type DeleteAllContentResult =
+  | ({ ok: true } & DeleteContentResult)
+  | { error: string };
+
+export async function deleteAllContentAction(
+  formData: FormData
+): Promise<DeleteAllContentResult> {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return { error: SESSION_EXPIRED_ERROR };
+  }
+
+  if (formString(formData, "confirmation") !== "DELETE") {
+    return { error: CONTENT_DELETE_CONFIRMATION_ERROR };
+  }
+
+  try {
+    const result = await deleteAllUserContent(user.id);
+    revalidatePath("/settings");
+    revalidatePath("/library");
+    revalidatePath("/dashboard");
+    revalidatePath("/story-time");
+    return { ok: true, ...result };
+  } catch (error) {
+    console.error(
+      "[settings] content deletion failed:",
+      error instanceof Error ? error.message : "unknown error"
+    );
+    return { error: CONTENT_DELETE_FAILED_ERROR };
+  }
+}
+
+type DeleteAccountResult = { ok: true } | { error: string };
+
+export async function deleteAccountAction(
+  formData: FormData
+): Promise<DeleteAccountResult> {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    return { error: SESSION_EXPIRED_ERROR };
+  }
+
+  const result = await deleteUserAccount(user.id, {
+    email: formString(formData, "email"),
+    password: formString(formData, "password"),
+    confirmation: formString(formData, "confirmation"),
+  }).catch((error) => {
+    console.error(
+      "[settings] account deletion failed:",
+      error instanceof Error ? error.message : "unknown error"
+    );
+    return { error: ACCOUNT_DELETE_FAILED_ERROR };
+  });
+
+  if ("error" in result) {
+    return result;
+  }
+
+  redirect("/");
 }

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   BookOpen,
+  Database,
   ShieldCheck,
   SlidersHorizontal,
   UserRound,
@@ -9,6 +10,7 @@ import {
 
 import { MobileNav } from "@/components/mobile-nav";
 import { AccountSummary } from "@/components/settings/account-summary";
+import { DataForm } from "@/components/settings/data-form";
 import { ReadingForm } from "@/components/settings/reading-form";
 import { SecurityForm } from "@/components/settings/security-form";
 import { SettingsSection } from "@/components/settings/settings-section";
@@ -88,6 +90,14 @@ export default async function SettingsPage() {
                 icon={<SlidersHorizontal size={20} />}
               >
                 <ReadingForm initialPreferences={preferences} />
+              </SettingsSection>
+
+              <SettingsSection
+                title="Data"
+                description="Export a copy of your data or permanently remove it."
+                icon={<Database size={20} />}
+              >
+                <DataForm email={user.email} />
               </SettingsSection>
             </div>
           </div>

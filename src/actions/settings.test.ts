@@ -12,6 +12,11 @@ vi.mock("@/lib/current-user", () => ({
   getCurrentUser: vi.fn(),
 }));
 
+vi.mock("@/lib/data-export", () => ({
+  deleteAllUserContent: vi.fn(),
+  deleteUserAccount: vi.fn(),
+}));
+
 vi.mock("@/lib/users", () => ({
   findPasswordHashById: vi.fn(),
   incrementSessionVersion: vi.fn(),
@@ -41,6 +46,10 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 
 import { getCurrentUser } from "@/lib/current-user";
+import {
+  deleteAllUserContent,
+  deleteUserAccount,
+} from "@/lib/data-export";
 import { updatePreferences } from "@/lib/preferences";
 import {
   clearSessionCookie,
@@ -48,7 +57,12 @@ import {
 } from "@/lib/session-cookies";
 import { incrementSessionVersion } from "@/lib/users";
 
-import { signOutAllAction, updatePreferencesAction } from "./settings";
+import {
+  deleteAccountAction,
+  deleteAllContentAction,
+  signOutAllAction,
+  updatePreferencesAction,
+} from "./settings";
 
 const user = {
   id: "user-1",
@@ -179,5 +193,118 @@ describe("updatePreferencesAction", () => {
 
     expect(result).toEqual({ error: "Choose valid reading preferences." });
     expect(updatePreferences).not.toHaveBeenCalled();
+  });
+});
+
+describe("deleteAllContentAction", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(getCurrentUser).mockResolvedValue(user);
+    vi.mocked(deleteAllUserContent).mockResolvedValue({
+      deletedBooks: 2,
+      deletedStories: 1,
+      deletedBlobs: 3,
+    });
+  });
+
+  it("deletes content only after the typed confirmation matches", async () => {
+    const formData = new FormData();
+    formData.set("confirmation", "delete");
+
+    const result = await deleteAllContentAction(formData);
+
+    expect(result).toEqual({
+      error: "Type DELETE to confirm deleting all of your content.",
+    });
+    expect(deleteAllUserContent).not.toHaveBeenCalled();
+  });
+
+  it("deletes the signed-in user's content and returns the counts", async () => {
+    const formData = new FormData();
+    formData.set("confirmation", "DELETE");
+
+    const result = await deleteAllContentAction(formData);
+
+    expect(deleteAllUserContent).toHaveBeenCalledWith("user-1");
+    expect(revalidatePath).toHaveBeenCalledWith("/library");
+    expect(result).toEqual({
+      ok: true,
+      deletedBooks: 2,
+      deletedStories: 1,
+      deletedBlobs: 3,
+    });
+  });
+
+  it("returns an error without success counts when Blob cleanup fails", async () => {
+    vi.mocked(deleteAllUserContent).mockRejectedValue(
+      new Error("Blob deletion failed")
+    );
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
+    const formData = new FormData();
+    formData.set("confirmation", "DELETE");
+
+    const result = await deleteAllContentAction(formData);
+
+    expect(result).toEqual({
+      error:
+        "Could not delete all of your content because some stored files could not be removed. Your library was not deleted.",
+    });
+    expect(result).not.toHaveProperty("ok");
+    consoleError.mockRestore();
+  });
+});
+
+describe("deleteAccountAction", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(getCurrentUser).mockResolvedValue(user);
+    vi.mocked(deleteUserAccount).mockResolvedValue({ ok: true });
+  });
+
+  it("passes the typed email, password, and confirmation to account deletion", async () => {
+    const formData = new FormData();
+    formData.set("email", "person@example.com");
+    formData.set("password", "correct-horse");
+    formData.set("confirmation", "DELETE");
+
+    await deleteAccountAction(formData);
+
+    expect(deleteUserAccount).toHaveBeenCalledWith("user-1", {
+      email: "person@example.com",
+      password: "correct-horse",
+      confirmation: "DELETE",
+    });
+    expect(redirect).toHaveBeenCalledWith("/");
+  });
+
+  it("returns verification errors without redirecting", async () => {
+    vi.mocked(deleteUserAccount).mockResolvedValue({
+      error: "Current password is incorrect.",
+    });
+    const formData = new FormData();
+    formData.set("email", "person@example.com");
+    formData.set("password", "wrong");
+    formData.set("confirmation", "DELETE");
+
+    const result = await deleteAccountAction(formData);
+
+    expect(result).toEqual({ error: "Current password is incorrect." });
+    expect(redirect).not.toHaveBeenCalled();
+  });
+
+  it("does not attempt deletion when there is no signed-in user", async () => {
+    vi.mocked(getCurrentUser).mockResolvedValue(null);
+    const formData = new FormData();
+    formData.set("email", "person@example.com");
+    formData.set("password", "correct-horse");
+    formData.set("confirmation", "DELETE");
+
+    const result = await deleteAccountAction(formData);
+
+    expect(result).toEqual({
+      error: "Your session has expired. Sign in again to continue.",
+    });
+    expect(deleteUserAccount).not.toHaveBeenCalled();
+    expect(redirect).not.toHaveBeenCalled();
   });
 });

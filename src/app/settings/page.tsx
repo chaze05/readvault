@@ -37,7 +37,8 @@ export default async function SettingsPage() {
   }
 
   const preferences = await getPreferences(user.id);
-  const familyAccounts = user.isAdmin
+  const isActiveAdmin = user.isAdmin && !user.mustChangePassword;
+  const familyAccounts = isActiveAdmin
     ? (await listFamilyAccounts()).map((account) => ({
         id: account.id,
         email: account.email,
@@ -111,7 +112,7 @@ export default async function SettingsPage() {
                 <DataForm email={user.email} />
               </SettingsSection>
 
-              {user.isAdmin && (
+              {isActiveAdmin && (
                 <SettingsSection
                   title="Family"
                   description="Create accounts for your family and issue one-time reset links."

@@ -14,7 +14,7 @@ import {
   WifiOff,
 } from "lucide-react";
 
-const PDF_CACHE = "readvault-pdfs";
+const PDF_CACHE = "readvault-pdfs-v2";
 
 type OfflineState = "checking" | "ready" | "online";
 

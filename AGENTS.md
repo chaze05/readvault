@@ -27,7 +27,7 @@ ReadVault is a multi-user PDF library and family Story Time app. Accounts, metad
 
 ## Security and data rules
 
-- Every API route and server action must call `getSession()`/`getCurrentUser()` or `requireActiveUser()`. User-owned queries must be scoped by `session.userId`; admin/global queries must be explicitly authorized with `requireAdmin()`.
+- Every API route, server action, and data-access path must call the DB-validated `getCurrentUser()`, `requireActiveUser()`, or `requireAdmin()` helpers. Never use `getSession()` for data access or authorization; it is reserved for middleware and the expired-cookie marker. User-owned queries must be scoped by the authenticated user id; admin/global queries must be explicitly authorized with `requireAdmin()`.
 - Never accept a user id from the client.
 - Session-version rule: `getCurrentUser()` loads the user and rejects the JWT when `users.session_version` differs from the token's `sv`. Password changes, reset/invite completion, and Sign out all increment `session_version`. Preserve this check on every authenticated path.
 - Admin authorization: use `requireAdmin()` (active user with `is_admin`). Hiding admin UI is not authorization; Family and AI settings actions must re-check server-side. Accounts with `must_change_password` are not active until the password is changed.

@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { getBookFile } from "@/lib/book-store";
 import { requireActiveUser } from "@/lib/current-user";
+import { AUTHENTICATED_CACHE_HEADERS } from "@/lib/http";
 import { isUuid } from "@/lib/uuid";
 
 export const runtime = "nodejs";
@@ -29,5 +30,7 @@ export async function GET(
     );
   }
 
-  return NextResponse.redirect(file.fileUrl);
+  return NextResponse.redirect(file.fileUrl, {
+    headers: AUTHENTICATED_CACHE_HEADERS,
+  });
 }

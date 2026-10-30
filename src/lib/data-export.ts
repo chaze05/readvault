@@ -1,5 +1,6 @@
 import { del } from "@vercel/blob";
 
+import { assertBlobUrlsClaimedByUser } from "./blob-claims";
 import { listBooks } from "./book-store";
 import { getPreferences } from "./preferences";
 import { query, withTransaction } from "./db";
@@ -187,6 +188,8 @@ export async function deleteAllUserContent(
 ): Promise<DeleteContentResult> {
   const content = await loadUserContent(userId);
   const blobUrls = collectBlobUrls(content);
+
+  await assertBlobUrlsClaimedByUser(userId, blobUrls);
 
   const deletionResults = await Promise.allSettled(
     blobUrls.map((url) => del(url))

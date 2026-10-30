@@ -12,6 +12,7 @@ import {
 } from "lucide-react";
 
 import { changePasswordAction, signOutAllAction } from "@/actions/settings";
+import { clearClientSessionData } from "@/lib/client-session-cleanup";
 
 export function SecurityForm({
   mustChangePassword = false,
@@ -66,6 +67,7 @@ export function SecurityForm({
     setSigningOutAll(true);
 
     try {
+      await clearClientSessionData();
       const result = await signOutAllAction();
 
       if (result && "error" in result) {

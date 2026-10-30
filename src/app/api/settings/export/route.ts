@@ -2,6 +2,7 @@ import { NextResponse } from "next/server";
 
 import { requireActiveUser } from "@/lib/current-user";
 import { buildUserExport } from "@/lib/data-export";
+import { AUTHENTICATED_CACHE_HEADERS } from "@/lib/http";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -23,9 +24,9 @@ export async function GET() {
     return new NextResponse(JSON.stringify(document, null, 2), {
       status: 200,
       headers: {
+        ...AUTHENTICATED_CACHE_HEADERS,
         "Content-Type": "application/json; charset=utf-8",
         "Content-Disposition": `attachment; filename="readvault-export-${date}.json"`,
-        "Cache-Control": "no-store",
       },
     });
   } catch (error) {

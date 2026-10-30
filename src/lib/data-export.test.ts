@@ -4,6 +4,14 @@ vi.mock("@vercel/blob", () => ({
   del: vi.fn(),
 }));
 
+vi.mock("./blob-claims", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./blob-claims")>();
+  return {
+    ...actual,
+    assertBlobUrlsClaimedByUser: vi.fn(),
+  };
+});
+
 vi.mock("./book-store", () => ({
   listBooks: vi.fn(),
 }));
@@ -32,6 +40,10 @@ vi.mock("./users", () => ({
 
 import { del } from "@vercel/blob";
 
+import {
+  assertBlobUrlsClaimedByUser,
+  BlobClaimError,
+} from "./blob-claims";
 import { listBooks } from "./book-store";
 import { query, withTransaction } from "./db";
 import {
@@ -96,6 +108,7 @@ const clientQuery = vi.fn();
 
 function mockUserContent() {
   vi.mocked(listBooks).mockResolvedValue([book]);
+  vi.mocked(assertBlobUrlsClaimedByUser).mockResolvedValue(undefined);
   vi.mocked(query).mockImplementation((async (text: string) => {
     if (text.includes("from public.stories s")) {
       return { rows: [storyRow] };
@@ -141,6 +154,11 @@ describe("deleteAllUserContent", () => {
     expect(del).toHaveBeenCalledWith("https://blob.example/book.pdf");
     expect(del).toHaveBeenCalledWith("https://blob.example/cover.png");
     expect(del).toHaveBeenCalledWith("https://blob.example/page-1.png");
+    expect(assertBlobUrlsClaimedByUser).toHaveBeenCalledWith("user-1", [
+      "https://blob.example/book.pdf",
+      "https://blob.example/cover.png",
+      "https://blob.example/page-1.png",
+    ]);
     expect(order).toEqual(["blob", "blob", "blob", "books", "stories"]);
     expect(result).toEqual({
       deletedBooks: 1,
@@ -155,6 +173,21 @@ describe("deleteAllUserContent", () => {
       "delete from public.stories where user_id = $1",
       ["user-1"]
     );
+  });
+
+  it("refuses deletion when an owned URL has no claim", async () => {
+    vi.mocked(assertBlobUrlsClaimedByUser).mockRejectedValue(
+      new BlobClaimError(
+        "Could not verify ownership of one or more stored files."
+      )
+    );
+
+    await expect(deleteAllUserContent("user-1")).rejects.toThrow(
+      "Could not verify ownership"
+    );
+    expect(del).not.toHaveBeenCalled();
+    expect(withTransaction).not.toHaveBeenCalled();
+    expect(clientQuery).not.toHaveBeenCalled();
   });
 
   it("throws before deleting database rows when any Blob deletion fails", async () => {

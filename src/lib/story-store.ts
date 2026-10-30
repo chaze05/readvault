@@ -1,5 +1,9 @@
 import { del, head } from "@vercel/blob";
 
+import {
+  assertBlobPathnameClaimedByUser,
+  isBlobUrlClaimedByUser,
+} from "./blob-claims";
 import { query, withTransaction } from "./db";
 import type { Story, StoryPage, StoryStatus, StoryType } from "./types";
 
@@ -238,17 +242,24 @@ export async function deleteStory(
     [id]
   );
 
-  await query("delete from public.stories where id = $1 and user_id = $2", [
-    id,
-    userId,
-  ]);
-
   const urls = [
     owner.rows[0].cover_image_path,
     ...pages.rows.map((page) => page.image_path),
   ].filter((url): url is string => Boolean(url));
 
-  await Promise.all(urls.map((url) => del(url).catch(() => {})));
+  const ownedUrls: string[] = [];
+  for (const url of urls) {
+    if (await isBlobUrlClaimedByUser(userId, url)) {
+      ownedUrls.push(url);
+    }
+  }
+
+  await query("delete from public.stories where id = $1 and user_id = $2", [
+    id,
+    userId,
+  ]);
+
+  await Promise.all(ownedUrls.map((url) => del(url).catch(() => {})));
   return true;
 }
 
@@ -300,13 +311,21 @@ export async function attachStoryImage(
     throw new Error("The uploaded file is not a supported image.");
   }
 
+  await assertBlobPathnameClaimedByUser(userId, blob.pathname);
+
   if (input.kind === "cover") {
     const old = owner.rows[0].cover_image_path;
     await query(
       "update public.stories set cover_image_path = $1, updated_at = now() where id = $2 and user_id = $3",
       [input.url, storyId, userId]
     );
-    if (old && old !== input.url) await del(old).catch(() => {});
+    if (
+      old &&
+      old !== input.url &&
+      (await isBlobUrlClaimedByUser(userId, old))
+    ) {
+      await del(old).catch(() => {});
+    }
     return { imageUrl: input.url };
   }
 
@@ -331,7 +350,13 @@ export async function attachStoryImage(
     "update public.stories set updated_at = now() where id = $1 and user_id = $2",
     [storyId, userId]
   );
-  if (old && old !== input.url) await del(old).catch(() => {});
+  if (
+    old &&
+    old !== input.url &&
+    (await isBlobUrlClaimedByUser(userId, old))
+  ) {
+    await del(old).catch(() => {});
+  }
 
   return { imageUrl: input.url };
 }

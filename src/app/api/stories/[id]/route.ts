@@ -2,6 +2,7 @@ import { NextRequest, NextResponse } from "next/server";
 
 import { deleteStory, getStory, updateStory } from "@/lib/story-store";
 import { requireActiveUser } from "@/lib/current-user";
+import { AUTHENTICATED_CACHE_HEADERS } from "@/lib/http";
 import { isUuid } from "@/lib/uuid";
 import { parseStoryInput } from "@/lib/validation";
 
@@ -27,7 +28,9 @@ export async function GET(
     return NextResponse.json({ error: "Story not found." }, { status: 404 });
   }
 
-  return NextResponse.json(story);
+  return NextResponse.json(story, {
+    headers: AUTHENTICATED_CACHE_HEADERS,
+  });
 }
 
 export async function PATCH(

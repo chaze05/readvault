@@ -1,6 +1,14 @@
 import { NextResponse, type NextRequest } from "next/server";
 
+import { AUTHENTICATED_CACHE_HEADERS } from "@/lib/http";
 import { SESSION_COOKIE, verifySession } from "@/lib/session";
+
+function withNoStore(response: NextResponse): NextResponse {
+  for (const [key, value] of Object.entries(AUTHENTICATED_CACHE_HEADERS)) {
+    response.headers.set(key, value);
+  }
+  return response;
+}
 
 const PROTECTED_PREFIXES = [
   "/dashboard",
@@ -23,7 +31,7 @@ export async function middleware(request: NextRequest) {
   if (!session && isProtected) {
     const loginUrl = request.nextUrl.clone();
     loginUrl.pathname = "/login";
-    return NextResponse.redirect(loginUrl);
+    return withNoStore(NextResponse.redirect(loginUrl));
   }
 
   if (
@@ -34,14 +42,14 @@ export async function middleware(request: NextRequest) {
     const settingsUrl = request.nextUrl.clone();
     settingsUrl.pathname = "/settings";
     settingsUrl.search = "?security=password";
-    return NextResponse.redirect(settingsUrl);
+    return withNoStore(NextResponse.redirect(settingsUrl));
   }
 
   if (session && pathname === "/login") {
     if (request.nextUrl.searchParams.get("expired") === "1") {
       const response = NextResponse.next({ request });
       response.cookies.delete(SESSION_COOKIE);
-      return response;
+      return withNoStore(response);
     }
 
     const settingsUrl = request.nextUrl.clone();
@@ -49,10 +57,10 @@ export async function middleware(request: NextRequest) {
     settingsUrl.search = session.mustChangePassword
       ? "?security=password"
       : "";
-    return NextResponse.redirect(settingsUrl);
+    return withNoStore(NextResponse.redirect(settingsUrl));
   }
 
-  return NextResponse.next({ request });
+  return withNoStore(NextResponse.next({ request }));
 }
 
 export const config = {

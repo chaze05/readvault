@@ -326,6 +326,7 @@ describe("testAiConnectionAction", () => {
   });
 
   it("returns the safe configuration message when configuration is unavailable", async () => {
+    const consoleError = vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(resolveAiConfig).mockRejectedValue(
       new AiConfigError(
         "decryption_key_missing",
@@ -340,6 +341,7 @@ describe("testAiConnectionAction", () => {
         "AI settings cannot be decrypted because SETTINGS_ENCRYPTION_KEY is not configured.",
     });
     expect(testAiProvider).not.toHaveBeenCalled();
+    consoleError.mockRestore();
   });
 
   it("returns a generic error for an unexpected failure", async () => {

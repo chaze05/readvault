@@ -69,6 +69,7 @@ function makeRequest(): NextRequest {
 describe("AI story route refunds", () => {
   beforeEach(() => {
     vi.resetAllMocks();
+    vi.spyOn(console, "error").mockImplementation(() => {});
     vi.mocked(requireActiveUser).mockResolvedValue({
       id: "db-user-1",
       email: "user@example.com",

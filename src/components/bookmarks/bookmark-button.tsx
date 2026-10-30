@@ -35,6 +35,7 @@ export function BookmarkButton({
   useEffect(() => {
     setBookmarked(initialBookmarked);
     setBookmarkId(initialBookmarkId);
+    if (!initialBookmarked) setMenuOpen(false);
   }, [initialBookmarked, initialBookmarkId]);
 
   useEffect(() => {
@@ -136,6 +137,15 @@ export function BookmarkButton({
         error?: string;
       } | null;
 
+      if (response.status === 404) {
+        setMenuOpen(false);
+        setBookmarked(false);
+        setBookmarkId(undefined);
+        setNotice("Bookmark removed");
+        onChange?.(null, pageNumber);
+        return;
+      }
+
       if (!response.ok) {
         throw new Error(data?.error ?? "Could not remove this bookmark.");
       }
@@ -143,7 +153,7 @@ export function BookmarkButton({
       setMenuOpen(false);
       setBookmarked(false);
       setBookmarkId(undefined);
-      setNotice("");
+      setNotice("Bookmark removed");
       onChange?.(null, pageNumber);
     } catch (removeError) {
       setError(

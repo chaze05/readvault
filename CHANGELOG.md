@@ -19,4 +19,5 @@
 - Cached opened PDFs for offline reading.
 - Added the PWA manifest, icons, service worker, offline page, and production registration.
 - Added iPhone PWA/offline setup documentation.
+- Received the Story Time feature specification; implementation has not started.
 

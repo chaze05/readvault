@@ -64,3 +64,4 @@ Planning estimate for the full roadmap: 20–32 working days. The local MVP come
 - PDF.js reader and automatic progress implemented ahead of schedule.
 - PWA and offline PDF caching implemented early at the user's request (originally Phase 7).
 - Next: bookmarks/notes, collections/categories, reader search/outline, then cloud migration.
+- Story Time feature specification received (`docs/ReadVault_Story_Time_Feature_Specification.pdf`); not implemented yet. It is a separate child-friendly storybook feature and should be planned as its own milestone before coding.

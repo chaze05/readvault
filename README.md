@@ -87,6 +87,7 @@ Offline caveats:
 - [docs/PWA_iPhone.md](docs/PWA_iPhone.md) — iPhone install/offline checklist
 - [CHANGELOG.md](CHANGELOG.md) — milestones
 - `docs/ReadVault_Project_Plan.pdf` — original plan
+- `docs/ReadVault_Story_Time_Feature_Specification.pdf` — planned Story Time feature (not implemented yet)
 
 ## Deployment note
 

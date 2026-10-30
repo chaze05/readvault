@@ -4,6 +4,8 @@ import { FormEvent, useRef, useState } from "react";
 import { upload } from "@vercel/blob/client";
 import { Upload, X, FileText, LoaderCircle } from "lucide-react";
 
+import type { Book } from "@/lib/types";
+
 const MAX_BYTES = 50 * 1024 * 1024;
 
 async function sha256(buffer: ArrayBuffer): Promise<string> {
@@ -18,7 +20,7 @@ export function UploadDialog({
   onUploaded,
 }: {
   onClose: () => void;
-  onUploaded: () => void;
+  onUploaded: (book: Book) => void;
 }) {
   const [file, setFile] = useState<File | null>(null);
   const [title, setTitle] = useState("");
@@ -76,6 +78,8 @@ export function UploadDialog({
         if (!response.ok) {
           throw new Error(data.error || "Upload failed.");
         }
+
+        onUploaded(data as Book);
       } else {
         const form = new FormData();
         form.append("file", file);
@@ -92,9 +96,10 @@ export function UploadDialog({
         if (!response.ok) {
           throw new Error(data.error || "Upload failed.");
         }
+
+        onUploaded(data as Book);
       }
 
-      onUploaded();
       onClose();
     } catch (uploadError) {
       setError(

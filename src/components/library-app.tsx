@@ -385,7 +385,12 @@ export function LibraryApp({ mode = "overview" }: { mode?: Mode }) {
       {showUpload && (
         <UploadDialog
           onClose={() => setShowUpload(false)}
-          onUploaded={() => void loadBooks()}
+          onUploaded={(book) =>
+            setBooks((current) => [
+              book,
+              ...current.filter((item) => item.id !== book.id),
+            ])
+          }
         />
       )}
       {editingBook && (

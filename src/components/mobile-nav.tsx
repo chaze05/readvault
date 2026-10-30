@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
+  Bookmark,
   Clock3,
   LayoutDashboard,
   Library,
@@ -14,6 +15,7 @@ const links = [
   { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { label: "Library", href: "/library", icon: Library },
   { label: "Recent", href: "/recent", icon: Clock3 },
+  { label: "Bookmarks", href: "/bookmarks", icon: Bookmark },
   { label: "Stories", href: "/story-time", icon: WandSparkles },
   { label: "Settings", href: "/settings", icon: Settings },
 ];

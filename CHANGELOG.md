@@ -12,3 +12,11 @@
 - Added mobile bottom navigation.
 - Split the library UI into stat, continue-reading, book-card, and empty-state components.
 - Added AGENTS.md, PROJECT_PLAN.md, ARCHITECTURE.md, and the source PDF.
+- Added Zod validation, SHA-256 hashing, storage helpers, and Vitest tests.
+- Added duplicate-upload detection (`409`), metadata editing, and library sorting.
+- Added automatic progress saving with detected total pages and completion status.
+- Replaced the iframe viewer with a PDF.js reader (page navigation, zoom, fit, fullscreen, keyboard arrows).
+- Cached opened PDFs for offline reading.
+- Added the PWA manifest, icons, service worker, offline page, and production registration.
+- Added iPhone PWA/offline setup documentation.
+

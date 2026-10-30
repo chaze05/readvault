@@ -59,5 +59,8 @@ Planning estimate for the full roadmap: 20–32 working days. The local MVP come
 
 ## Current Status
 
-- Starter inspected, installed, linted, and built.
-- Phase 1 foundation and navigation in progress.
+- Phase 1 foundation complete: validated starter, lint/build, navigation, recent view, mobile nav, docs.
+- Phase 2 core complete: Zod validation, hashing/duplicate detection, metadata editing, sorting, deletion consistency, Vitest tests.
+- PDF.js reader and automatic progress implemented ahead of schedule.
+- PWA and offline PDF caching implemented early at the user's request (originally Phase 7).
+- Next: bookmarks/notes, collections/categories, reader search/outline, then cloud migration.

@@ -10,3 +10,4 @@ data/uploads/*
 !.gitkeep
 *.log
 .DS_Store
+public/pdf.worker.min.mjs

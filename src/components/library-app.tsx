@@ -7,6 +7,7 @@ import {
   BookCheck,
   BookOpen,
   Library,
+  Pencil,
   Search,
   Sparkles,
   Trash2,
@@ -14,12 +15,14 @@ import {
 } from "lucide-react";
 
 import { BookCover } from "@/components/book-cover";
+import { EditBookDialog } from "@/components/edit-book-dialog";
 import { MobileNav } from "@/components/mobile-nav";
 import { Sidebar } from "@/components/sidebar";
 import { UploadDialog } from "@/components/upload-dialog";
 import type { Book, BookStatus } from "@/lib/types";
 
 type Mode = "overview" | "library" | "recent";
+type SortOption = "recent" | "title" | "author";
 
 const MODE_COPY: Record<
   Mode,
@@ -65,7 +68,9 @@ export function LibraryApp({ mode = "overview" }: { mode?: Mode }) {
   const [books, setBooks] = useState<Book[]>([]);
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("All books");
+  const [sort, setSort] = useState<SortOption>("recent");
   const [showUpload, setShowUpload] = useState(false);
+  const [editingBook, setEditingBook] = useState<Book | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -112,6 +117,18 @@ export function LibraryApp({ mode = "overview" }: { mode?: Mode }) {
       }),
     [sourceBooks, query, category]
   );
+
+  const sorted = useMemo(() => {
+    const list = [...filtered];
+
+    if (sort === "title") {
+      list.sort((a, b) => a.title.localeCompare(b.title));
+    } else if (sort === "author") {
+      list.sort((a, b) => a.author.localeCompare(b.author));
+    }
+
+    return list;
+  }, [filtered, sort]);
 
   const reading = books.filter((book) => book.status === "reading");
   const completed = books.filter((book) => book.status === "completed");
@@ -284,17 +301,34 @@ export function LibraryApp({ mode = "overview" }: { mode?: Mode }) {
                   your personal collection
                 </p>
               </div>
-              <div className="relative sm:hidden">
-                <Search
-                  className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9aa195]"
-                  size={15}
-                />
-                <input
-                  value={query}
-                  onChange={(event) => setQuery(event.target.value)}
-                  placeholder="Search books..."
-                  className="w-44 rounded-xl border border-line bg-white py-2.5 pl-9 pr-2 text-xs outline-none"
-                />
+              <div className="flex items-center gap-2">
+                <label className="sr-only" htmlFor="sort-books">
+                  Sort books
+                </label>
+                <select
+                  id="sort-books"
+                  value={sort}
+                  onChange={(event) =>
+                    setSort(event.target.value as SortOption)
+                  }
+                  className="rounded-xl border border-line bg-white px-3 py-2.5 text-xs font-semibold text-muted outline-none focus:border-brand"
+                >
+                  <option value="recent">Recently active</option>
+                  <option value="title">Title A–Z</option>
+                  <option value="author">Author A–Z</option>
+                </select>
+                <div className="relative sm:hidden">
+                  <Search
+                    className="absolute left-3 top-1/2 -translate-y-1/2 text-[#9aa195]"
+                    size={15}
+                  />
+                  <input
+                    value={query}
+                    onChange={(event) => setQuery(event.target.value)}
+                    placeholder="Search books..."
+                    className="w-44 rounded-xl border border-line bg-white py-2.5 pl-9 pr-2 text-xs outline-none"
+                  />
+                </div>
               </div>
             </div>
 
@@ -323,8 +357,13 @@ export function LibraryApp({ mode = "overview" }: { mode?: Mode }) {
               </div>
             ) : filtered.length ? (
               <div className="grid grid-cols-2 gap-4 sm:grid-cols-3 xl:grid-cols-4">
-                {filtered.map((book) => (
-                  <BookCard key={book.id} book={book} onDelete={deleteBook} />
+                {sorted.map((book) => (
+                  <BookCard
+                    key={book.id}
+                    book={book}
+                    onEdit={setEditingBook}
+                    onDelete={deleteBook}
+                  />
                 ))}
               </div>
             ) : (
@@ -347,6 +386,13 @@ export function LibraryApp({ mode = "overview" }: { mode?: Mode }) {
         <UploadDialog
           onClose={() => setShowUpload(false)}
           onUploaded={() => void loadBooks()}
+        />
+      )}
+      {editingBook && (
+        <EditBookDialog
+          book={editingBook}
+          onClose={() => setEditingBook(null)}
+          onSaved={() => void loadBooks()}
         />
       )}
       <MobileNav />
@@ -417,9 +463,11 @@ function ContinueCard({ book }: { book: Book }) {
 
 function BookCard({
   book,
+  onEdit,
   onDelete,
 }: {
   book: Book;
+  onEdit: (book: Book) => void;
   onDelete: (book: Book) => void;
 }) {
   return (
@@ -453,7 +501,16 @@ function BookCard({
           </div>
         </div>
       </Link>
-      <div className="mt-1 flex justify-end">
+      <div className="mt-1 flex justify-end gap-1">
+        <button
+          type="button"
+          onClick={() => onEdit(book)}
+          className="rounded-lg p-1.5 text-[#a0a69b] opacity-70 hover:bg-brand-soft hover:text-brand"
+          title="Edit book"
+          aria-label={`Edit ${book.title}`}
+        >
+          <Pencil size={13} />
+        </button>
         <button
           type="button"
           onClick={() => onDelete(book)}

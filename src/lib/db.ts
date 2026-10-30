@@ -23,6 +23,7 @@ function createDatabase() {
       description TEXT,
       file_name TEXT,
       file_path TEXT,
+      file_hash TEXT,
       total_pages INTEGER NOT NULL DEFAULT 0,
       current_page INTEGER NOT NULL DEFAULT 0,
       status TEXT NOT NULL DEFAULT 'not_started',
@@ -31,6 +32,16 @@ function createDatabase() {
       updated_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
     );
   `);
+
+  const columns = database.prepare("PRAGMA table_info(books)").all() as {
+    name: string;
+  }[];
+  if (!columns.some((column) => column.name === "file_hash")) {
+    database.exec("ALTER TABLE books ADD COLUMN file_hash TEXT");
+  }
+  database.exec(
+    "CREATE UNIQUE INDEX IF NOT EXISTS books_file_hash_idx ON books(file_hash) WHERE file_hash IS NOT NULL"
+  );
 
   return database;
 }

@@ -1,11 +1,17 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  aiSettingsInputSchema,
   bookCreateSchema,
   bookUpdateSchema,
   cloudBookInputSchema,
+  deleteAccountSchema,
+  familyAccountInputSchema,
   hasPdfSignature,
   parseBookInput,
+  passwordChangeSchema,
+  passwordSchema,
+  preferencesSchema,
   progressSchema,
 } from "./validation";
 
@@ -123,5 +129,176 @@ describe("hasPdfSignature", () => {
   it("rejects non-PDF content and short buffers", () => {
     expect(hasPdfSignature(new TextEncoder().encode("hello"))).toBe(false);
     expect(hasPdfSignature(new TextEncoder().encode("%PD"))).toBe(false);
+  });
+});
+
+describe("passwordSchema", () => {
+  it("accepts a password with at least eight characters", () => {
+    expect(passwordSchema.safeParse("password").success).toBe(true);
+  });
+
+  it("rejects short passwords and passwords over 72 bytes", () => {
+    expect(passwordSchema.safeParse("short").success).toBe(false);
+    expect(passwordSchema.safeParse("é".repeat(37)).success).toBe(false);
+  });
+});
+
+describe("preferencesSchema", () => {
+  it("accepts allowed PDF zoom, text size, and reduce motion", () => {
+    expect(
+      preferencesSchema.safeParse({
+        pdfZoom: 75,
+        storyTextSize: "small",
+        reduceMotion: true,
+      }).success
+    ).toBe(true);
+  });
+
+  it("accepts every allowed zoom and text size", () => {
+    for (const pdfZoom of [75, 100, 125, 150] as const) {
+      for (const storyTextSize of ["small", "medium", "large"] as const) {
+        expect(
+          preferencesSchema.safeParse({
+            pdfZoom,
+            storyTextSize,
+            reduceMotion: false,
+          }).success
+        ).toBe(true);
+      }
+    }
+  });
+
+  it("rejects an unsupported zoom", () => {
+    expect(
+      preferencesSchema.safeParse({
+        pdfZoom: 90,
+        storyTextSize: "small",
+        reduceMotion: true,
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects an unsupported story text size", () => {
+    expect(
+      preferencesSchema.safeParse({
+        pdfZoom: 100,
+        storyTextSize: "huge",
+        reduceMotion: false,
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe("passwordChangeSchema", () => {
+  it("accepts matching new passwords", () => {
+    expect(
+      passwordChangeSchema.safeParse({
+        currentPassword: "current-password",
+        newPassword: "new-password",
+        confirmPassword: "new-password",
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects mismatched new passwords", () => {
+    expect(
+      passwordChangeSchema.safeParse({
+        currentPassword: "current-password",
+        newPassword: "new-password",
+        confirmPassword: "different-password",
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe("deleteAccountSchema", () => {
+  it("accepts matching credentials and the DELETE confirmation", () => {
+    expect(
+      deleteAccountSchema.safeParse({
+        email: "reader@example.com",
+        password: "current-password",
+        confirmation: "DELETE",
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects a missing DELETE confirmation", () => {
+    expect(
+      deleteAccountSchema.safeParse({
+        email: "reader@example.com",
+        password: "current-password",
+        confirmation: "delete",
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe("familyAccountInputSchema", () => {
+  it("accepts invite and temporary_password methods", () => {
+    expect(
+      familyAccountInputSchema.safeParse({
+        email: "family@example.com",
+        method: "invite",
+      }).success
+    ).toBe(true);
+    expect(
+      familyAccountInputSchema.safeParse({
+        email: "family@example.com",
+        method: "temporary_password",
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects an invalid email", () => {
+    expect(
+      familyAccountInputSchema.safeParse({
+        email: "not-an-email",
+        method: "invite",
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects an unsupported method", () => {
+    expect(
+      familyAccountInputSchema.safeParse({
+        email: "family@example.com",
+        method: "email",
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe("aiSettingsInputSchema", () => {
+  it("accepts valid AI settings without an API key", () => {
+    expect(
+      aiSettingsInputSchema.safeParse({
+        provider: "deepseek",
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-chat",
+        dailyLimit: 10,
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects a daily limit below one", () => {
+    expect(
+      aiSettingsInputSchema.safeParse({
+        provider: "deepseek",
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-chat",
+        dailyLimit: 0,
+      }).success
+    ).toBe(false);
+  });
+
+  it("rejects a daily limit above one hundred", () => {
+    expect(
+      aiSettingsInputSchema.safeParse({
+        provider: "deepseek",
+        baseUrl: "https://api.deepseek.com",
+        model: "deepseek-chat",
+        dailyLimit: 101,
+      }).success
+    ).toBe(false);
   });
 });

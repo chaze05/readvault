@@ -37,21 +37,69 @@ const authEmailSchema = z
   .toLowerCase()
   .pipe(z.email({ error: "Enter a valid email address." }));
 
+export const passwordSchema = z
+  .string()
+  .min(8, "Password must be at least 8 characters.")
+  .max(200)
+  .refine(
+    (value) => new TextEncoder().encode(value).length <= 72,
+    "Password must be 72 bytes or fewer."
+  );
+
 export const signUpSchema = z.object({
   email: authEmailSchema,
-  password: z
-    .string()
-    .min(8, "Password must be at least 8 characters.")
-    .max(200)
-    .refine(
-      (value) => new TextEncoder().encode(value).length <= 72,
-      "Password must be 72 bytes or fewer."
-    ),
+  password: passwordSchema,
 });
 
 export const signInSchema = z.object({
   email: authEmailSchema,
   password: z.string().min(1, "Password is required.").max(200),
+});
+
+export const passwordChangeSchema = z
+  .object({
+    currentPassword: z
+      .string()
+      .min(1, "Current password is required.")
+      .max(200),
+    newPassword: passwordSchema,
+    confirmPassword: passwordSchema,
+  })
+  .refine((data) => data.newPassword === data.confirmPassword, {
+    message: "New passwords do not match.",
+    path: ["confirmPassword"],
+  });
+
+export const deleteAccountSchema = z.object({
+  email: authEmailSchema,
+  password: z.string().min(1, "Password is required.").max(200),
+  confirmation: z.literal("DELETE", {
+    error: "Type DELETE to confirm account deletion.",
+  }),
+});
+
+export const familyAccountInputSchema = z.object({
+  email: authEmailSchema,
+  method: z.enum(["invite", "temporary_password"]),
+});
+
+export const preferencesSchema = z.object({
+  pdfZoom: z.union([
+    z.literal(75),
+    z.literal(100),
+    z.literal(125),
+    z.literal(150),
+  ]),
+  storyTextSize: z.enum(["small", "medium", "large"]),
+  reduceMotion: z.boolean(),
+});
+
+export const aiSettingsInputSchema = z.object({
+  provider: z.enum(["deepseek", "openai", "custom"]),
+  baseUrl: z.url("Enter a valid provider URL."),
+  model: z.string().trim().min(1, "Model is required.").max(200),
+  apiKey: z.string().trim().max(500).optional().default(""),
+  dailyLimit: z.number().int().min(1).max(100),
 });
 
 const storyPageInputSchema = z.object({
@@ -105,6 +153,11 @@ export type CloudBookInput = z.infer<typeof cloudBookInputSchema>;
 export type ProgressInput = z.infer<typeof progressSchema>;
 export type SignUpInput = z.infer<typeof signUpSchema>;
 export type SignInInput = z.infer<typeof signInSchema>;
+export type PasswordChangeInput = z.infer<typeof passwordChangeSchema>;
+export type DeleteAccountInput = z.infer<typeof deleteAccountSchema>;
+export type FamilyAccountInput = z.infer<typeof familyAccountInputSchema>;
+export type PreferencesInput = z.infer<typeof preferencesSchema>;
+export type AiSettingsInput = z.infer<typeof aiSettingsInputSchema>;
 export type StoryInput = z.infer<typeof storyInputSchema>;
 export type AiStoryInput = z.infer<typeof aiStorySchema>;
 

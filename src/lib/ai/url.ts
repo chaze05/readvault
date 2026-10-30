@@ -73,16 +73,7 @@ function isPrivateIpv6(address: string): boolean {
   if ((firstHextet & 0xff00) === 0xff00) return true;
 
   if (normalized.startsWith("::ffff:")) {
-    const hextets = normalized.slice("::ffff:".length).split(":");
-    if (hextets.length === 2) {
-      const high = Number.parseInt(hextets[0], 16);
-      const low = Number.parseInt(hextets[1], 16);
-      if (!Number.isNaN(high) && !Number.isNaN(low)) {
-        return isPrivateIpv4(
-          [high >> 8, high & 0xff, low >> 8, low & 0xff].join(".")
-        );
-      }
-    }
+    return true;
   }
 
   return false;

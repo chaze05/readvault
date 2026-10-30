@@ -8,6 +8,7 @@ import {
 import {
   AiProviderError,
   generateAiStory,
+  shouldRefundAiDraft,
 } from "@/lib/ai/provider";
 import {
   refundAiDraft,
@@ -63,9 +64,11 @@ export async function POST(request: NextRequest) {
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
+  const usageNow = new Date();
+
   let usage: AiDraftUsage;
   try {
-    usage = await reserveAiDraft(currentUser.id, config.dailyLimit);
+    usage = await reserveAiDraft(currentUser.id, config.dailyLimit, usageNow);
   } catch {
     console.error("[ai-story] usage reservation unavailable");
 
@@ -98,7 +101,13 @@ export async function POST(request: NextRequest) {
     const draft = await generateAiStory(config, parsed.data);
     return NextResponse.json(draft);
   } catch (error) {
-    await refundAiDraft(currentUser.id).catch(() => {});
+    if (shouldRefundAiDraft(error)) {
+      try {
+        await refundAiDraft(currentUser.id, usageNow);
+      } catch {
+        console.error("[ai-story] usage refund failed: refund_failed");
+      }
+    }
 
     console.error(
       "[ai-story] generation failed:",

@@ -24,6 +24,13 @@ export class AiProviderError extends Error {
   }
 }
 
+export function shouldRefundAiDraft(error: unknown): boolean {
+  return (
+    error instanceof AiProviderError &&
+    (error.code === "connection_failed" || error.code === "provider_rejected")
+  );
+}
+
 const SYSTEM_PROMPT = [
   "You write gentle, original children's stories for a parent-managed family library.",
   "Never include copyrighted characters, movie scripts, dialogue, or scene-by-scene retellings.",

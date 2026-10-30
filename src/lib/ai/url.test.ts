@@ -57,9 +57,22 @@ describe("validateAiBaseUrl", () => {
       "https://[fe80::1]",
       "https://[fd12:3456::1]",
       "https://[::ffff:127.0.0.1]",
+      "https://[::ffff:0:7f00:1]",
+      "https://[::ffff:0:c0a8:101]",
     ]) {
       expect(() => validateAiBaseUrl(url, ["localhost", "127.0.0.1"])).toThrow();
     }
+  });
+
+  it("rejects IPv4-mapped IPv6 literals even when allowlisted", () => {
+    expect(() =>
+      validateAiBaseUrl("https://[::ffff:0:7f00:1]", [
+        "[::ffff:0:7f00:1]",
+      ])
+    ).toThrow();
+    expect(() =>
+      validateAiBaseUrl("https://[::ffff:7f00:1]", ["[::ffff:7f00:1]"])
+    ).toThrow();
   });
 
   it("rejects provider URLs with embedded credentials", () => {

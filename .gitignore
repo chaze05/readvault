@@ -17,3 +17,4 @@ public/pdf.worker.min.mjs
 
 .vercel
 .env*
+.neon

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { saveProgress } from "@/lib/book-store";
-import { getSession } from "@/lib/session-cookies";
+import { requireActiveUser } from "@/lib/current-user";
 import { isUuid } from "@/lib/uuid";
 import { parseProgress } from "@/lib/validation";
 
@@ -12,8 +12,8 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session) {
+  const user = await requireActiveUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -30,7 +30,7 @@ export async function PATCH(
   }
 
   const result = await saveProgress(
-    session.userId,
+    user.id,
     id,
     parsed.data.currentPage,
     parsed.data.totalPages

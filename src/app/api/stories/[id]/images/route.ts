@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { attachStoryImage } from "@/lib/story-store";
-import { getSession } from "@/lib/session-cookies";
+import { requireActiveUser } from "@/lib/current-user";
 import { isUuid } from "@/lib/uuid";
 
 export const runtime = "nodejs";
@@ -11,8 +11,8 @@ export async function POST(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session) {
+  const user = await requireActiveUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -35,7 +35,7 @@ export async function POST(
   }
 
   try {
-    const result = await attachStoryImage(session.userId, id, {
+    const result = await attachStoryImage(user.id, id, {
       url,
       kind,
       pageId,

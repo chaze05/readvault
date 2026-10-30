@@ -20,9 +20,9 @@ function isUniqueViolation(error: unknown): boolean {
   );
 }
 
-export async function signUp(
-  formData: FormData
-): Promise<{ ok: true } | { error: string }> {
+type AuthResult = { ok: true; mustChangePassword: boolean } | { error: string };
+
+export async function signUp(formData: FormData): Promise<AuthResult> {
   if (process.env.ALLOW_SIGNUPS !== "true") {
     return {
       error:
@@ -42,9 +42,14 @@ export async function signUp(
   try {
     const passwordHash = await hashPassword(parsed.data.password);
     const user = await createUser(parsed.data.email, passwordHash);
-    const token = await signSession({ userId: user.id, email: user.email });
+    const token = await signSession({
+      userId: user.id,
+      email: user.email,
+      sessionVersion: 0,
+      mustChangePassword: false,
+    });
     await setSessionCookie(token);
-    return { ok: true };
+    return { ok: true, mustChangePassword: false };
   } catch (error) {
     if (isUniqueViolation(error)) {
       return { error: "An account with that email already exists." };
@@ -58,9 +63,7 @@ export async function signUp(
   }
 }
 
-export async function signIn(
-  formData: FormData
-): Promise<{ ok: true } | { error: string }> {
+export async function signIn(formData: FormData): Promise<AuthResult> {
   const parsed = signInSchema.safeParse({
     email: formString(formData, "email"),
     password: formString(formData, "password"),
@@ -82,9 +85,14 @@ export async function signIn(
       return { error: "Invalid email or password." };
     }
 
-    const token = await signSession({ userId: user.id, email: user.email });
+    const token = await signSession({
+      userId: user.id,
+      email: user.email,
+      sessionVersion: user.session_version,
+      mustChangePassword: user.must_change_password,
+    });
     await setSessionCookie(token);
-    return { ok: true };
+    return { ok: true, mustChangePassword: user.must_change_password };
   } catch (error) {
     console.error(
       "[auth] signin failed:",

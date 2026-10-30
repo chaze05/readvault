@@ -1,6 +1,6 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 
-import { getSession } from "@/lib/session-cookies";
+import { requireActiveUser } from "@/lib/current-user";
 import { MAX_FILE_BYTES } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -10,8 +10,8 @@ const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 export async function POST(request: Request) {
-  const session = await getSession();
-  if (!session) {
+  const user = await requireActiveUser();
+  if (!user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 

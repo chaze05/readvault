@@ -1,7 +1,7 @@
 import { notFound, redirect } from "next/navigation";
 
 import { StoryReader } from "@/components/story-reader";
-import { getSession } from "@/lib/session-cookies";
+import { requireActiveUser } from "@/lib/current-user";
 import { getStory } from "@/lib/story-store";
 import { isUuid } from "@/lib/uuid";
 
@@ -13,13 +13,13 @@ export default async function ReadStoryPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const session = await getSession();
-  if (!session) redirect("/login");
+  const user = await requireActiveUser();
+  if (!user) redirect("/login");
 
   const { id } = await params;
   if (!isUuid(id)) notFound();
 
-  const story = await getStory(session.userId, id);
+  const story = await getStory(user.id, id);
   if (!story) notFound();
 
   return <StoryReader storyId={story.id} initialStory={story} />;

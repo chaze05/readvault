@@ -31,7 +31,9 @@ export function AuthForm() {
         return;
       }
 
-      router.push("/library");
+      router.push(
+        result.mustChangePassword ? "/settings?security=password" : "/library"
+      );
       router.refresh();
     } catch {
       setError("Could not reach the authentication service. Please try again.");

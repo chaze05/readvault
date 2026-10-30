@@ -5,6 +5,14 @@ export interface AuthUser {
   email: string;
 }
 
+export interface UserSecurityFields {
+  is_admin: boolean;
+  session_version: number;
+  must_change_password: boolean;
+}
+
+export type UserRecord = AuthUser & UserSecurityFields;
+
 export async function createUser(
   email: string,
   passwordHash: string
@@ -19,10 +27,19 @@ export async function createUser(
 
 export async function findUserForLogin(
   email: string
-): Promise<(AuthUser & { password_hash: string }) | null> {
-  const { rows } = await query<AuthUser & { password_hash: string }>(
-    "select id, email, password_hash from public.users where lower(email) = lower($1)",
+): Promise<(UserRecord & { password_hash: string }) | null> {
+  const { rows } = await query<UserRecord & { password_hash: string }>(
+    "select id, email, password_hash, is_admin, session_version, must_change_password from public.users where lower(email) = lower($1)",
     [email]
+  );
+
+  return rows[0] ?? null;
+}
+
+export async function findUserById(id: string): Promise<UserRecord | null> {
+  const { rows } = await query<UserRecord>(
+    "select id, email, is_admin, session_version, must_change_password from public.users where id = $1",
+    [id]
   );
 
   return rows[0] ?? null;

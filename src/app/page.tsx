@@ -1,11 +1,11 @@
 import { HomePage } from "@/components/home-page";
-import { getSession } from "@/lib/session-cookies";
+import { getCurrentUser } from "@/lib/current-user";
 
 export default async function Page() {
   let signedIn = false;
 
   try {
-    signedIn = Boolean(await getSession());
+    signedIn = Boolean(await getCurrentUser());
   } catch {
     signedIn = false;
   }

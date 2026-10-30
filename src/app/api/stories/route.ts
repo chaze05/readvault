@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { createStory, listStories } from "@/lib/story-store";
-import { getSession } from "@/lib/session-cookies";
+import { requireActiveUser } from "@/lib/current-user";
 import { parseStoryInput } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getSession();
-  if (!session) {
+  const user = await requireActiveUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return NextResponse.json(await listStories(session.userId));
+  return NextResponse.json(await listStories(user.id));
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getSession();
-  if (!session) {
+  const user = await requireActiveUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -30,7 +30,7 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const id = await createStory(session.userId, parsed.data);
+    const id = await createStory(user.id, parsed.data);
     return NextResponse.json({ id }, { status: 201 });
   } catch (error) {
     console.error(

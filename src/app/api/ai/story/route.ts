@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getSession } from "@/lib/session-cookies";
+import { requireActiveUser } from "@/lib/current-user";
 import { parseAiStoryInput } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -13,8 +13,8 @@ interface AiStoryPage {
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getSession();
-  if (!session) {
+  const currentUser = await requireActiveUser();
+  if (!currentUser) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 

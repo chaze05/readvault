@@ -1,6 +1,7 @@
 const SHELL_CACHE = "readvault-shell-v1";
-const RUNTIME_CACHE = "readvault-runtime-v1";
+const RUNTIME_CACHE = "readvault-runtime-v2";
 const OFFLINE_URL = "/offline";
+const TOKEN_PATHS = ["/reset-password", "/accept-invite"];
 
 const PRECACHE = [
   "/",
@@ -53,6 +54,14 @@ self.addEventListener("fetch", (event) => {
 
   const url = new URL(request.url);
   if (url.origin !== self.location.origin) return;
+
+  if (
+    TOKEN_PATHS.some(
+      (path) => url.pathname === path || url.pathname.startsWith(`${path}/`)
+    )
+  ) {
+    return;
+  }
 
   // PDF files are cached deliberately by the reader through the Cache API.
   if (url.pathname.startsWith("/api/books/") && url.pathname.endsWith("/file")) {

@@ -3,7 +3,7 @@
 import { redirect } from "next/navigation";
 
 import type { AccountTokenPurpose } from "@/lib/account-token-crypto";
-import { setPasswordWithToken } from "@/lib/account-tokens";
+import { findAccountToken, setPasswordWithToken } from "@/lib/account-tokens";
 import { hashPassword } from "@/lib/password";
 import { clearSessionCookie } from "@/lib/session-cookies";
 import { passwordSchema } from "@/lib/validation";
@@ -49,6 +49,12 @@ export async function setPasswordWithTokenAction(
   }
 
   try {
+    const existingAccount = await findAccountToken(token, purpose);
+
+    if (!existingAccount) {
+      return { error: INVALID_LINK_ERROR };
+    }
+
     const passwordHash = await hashPassword(parsed.data);
     const account = await setPasswordWithToken({
       rawToken: token,

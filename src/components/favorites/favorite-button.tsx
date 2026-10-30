@@ -10,11 +10,13 @@ export function FavoriteButton({
   targetId,
   initialFavorite,
   className,
+  onToggle,
 }: {
   kind: BookmarkKind;
   targetId: string;
   initialFavorite: boolean;
   className?: string;
+  onToggle?: (isFavorite: boolean) => void;
 }) {
   const [isFavorite, setIsFavorite] = useState(initialFavorite);
   const [pending, setPending] = useState(false);
@@ -33,6 +35,7 @@ export function FavoriteButton({
   async function toggle() {
     const nextFavorite = !isFavorite;
     setIsFavorite(nextFavorite);
+    onToggle?.(nextFavorite);
     setPending(true);
     setError("");
 
@@ -55,6 +58,7 @@ export function FavoriteButton({
       }
     } catch (toggleError) {
       setIsFavorite(!nextFavorite);
+      onToggle?.(!nextFavorite);
       setError(
         toggleError instanceof Error
           ? toggleError.message

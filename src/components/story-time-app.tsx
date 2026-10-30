@@ -13,6 +13,7 @@ import {
   WandSparkles,
 } from "lucide-react";
 
+import { FavoriteButton } from "@/components/favorites/favorite-button";
 import { MobileNav } from "@/components/mobile-nav";
 import { Sidebar } from "@/components/sidebar";
 import type { Story } from "@/lib/types";
@@ -56,6 +57,14 @@ export function StoryTimeApp() {
       }),
     [stories, query, filter]
   );
+
+  function updateStoryFavorite(id: string, isFavorite: boolean) {
+    setStories((current) =>
+      current.map((story) =>
+        story.id === id ? { ...story, isFavorite } : story
+      )
+    );
+  }
 
   async function remove(story: Story) {
     if (!window.confirm(`Delete "${story.title}" and its story images?`)) return;
@@ -155,7 +164,7 @@ export function StoryTimeApp() {
               {filtered.map((story) => (
                 <article
                   key={story.id}
-                  className="overflow-hidden rounded-2xl border border-line bg-white p-3 shadow-soft"
+                  className="relative overflow-hidden rounded-2xl border border-line bg-white p-3 shadow-soft"
                 >
                   <Link href={`/story-time/${story.id}`} className="block no-underline">
                     <div className="story-cover">
@@ -194,6 +203,16 @@ export function StoryTimeApp() {
                       </p>
                     </div>
                   </Link>
+                  <div className="absolute right-4 top-4 z-10">
+                    <FavoriteButton
+                      kind="story"
+                      targetId={story.id}
+                      initialFavorite={story.isFavorite}
+                      onToggle={(isFavorite) =>
+                        updateStoryFavorite(story.id, isFavorite)
+                      }
+                    />
+                  </div>
                   <div className="mt-2 flex items-center justify-end gap-1 border-t border-line pt-2">
                     <Link
                       href={`/story-time/${story.id}/edit`}

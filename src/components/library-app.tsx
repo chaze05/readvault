@@ -16,6 +16,7 @@ import {
 
 import { BookCover } from "@/components/book-cover";
 import { EditBookDialog } from "@/components/edit-book-dialog";
+import { FavoriteButton } from "@/components/favorites/favorite-button";
 import { MobileNav } from "@/components/mobile-nav";
 import { Sidebar } from "@/components/sidebar";
 import { UploadDialog } from "@/components/upload-dialog";
@@ -158,6 +159,14 @@ export function LibraryApp({ mode = "overview" }: { mode?: Mode }) {
   function clearFilters() {
     setQuery("");
     setCategory("All books");
+  }
+
+  function updateBookFavorite(id: string, isFavorite: boolean) {
+    setBooks((current) =>
+      current.map((book) =>
+        book.id === id ? { ...book, isFavorite } : book
+      )
+    );
   }
 
   return (
@@ -363,6 +372,9 @@ export function LibraryApp({ mode = "overview" }: { mode?: Mode }) {
                     book={book}
                     onEdit={setEditingBook}
                     onDelete={deleteBook}
+                    onFavoriteChange={(isFavorite) =>
+                      updateBookFavorite(book.id, isFavorite)
+                    }
                   />
                 ))}
               </div>
@@ -470,13 +482,15 @@ function BookCard({
   book,
   onEdit,
   onDelete,
+  onFavoriteChange,
 }: {
   book: Book;
   onEdit: (book: Book) => void;
   onDelete: (book: Book) => void;
+  onFavoriteChange: (isFavorite: boolean) => void;
 }) {
   return (
-    <article className="book-card group overflow-hidden rounded-2xl border border-line bg-white p-3 shadow-[0_3px_14px_rgba(31,47,34,.025)]">
+    <article className="book-card group relative overflow-hidden rounded-2xl border border-line bg-white p-3 shadow-[0_3px_14px_rgba(31,47,34,.025)]">
       <Link href={`/reader/${book.id}`} className="block no-underline">
         <BookCover title={book.title} author={book.author} color={book.coverColor} />
         <div className="px-1 pb-1 pt-4">
@@ -506,6 +520,14 @@ function BookCard({
           </div>
         </div>
       </Link>
+      <div className="absolute right-4 top-4 z-10">
+        <FavoriteButton
+          kind="book"
+          targetId={book.id}
+          initialFavorite={book.isFavorite}
+          onToggle={onFavoriteChange}
+        />
+      </div>
       <div className="mt-1 flex justify-end gap-1">
         <button
           type="button"

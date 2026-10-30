@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   bookCreateSchema,
   bookUpdateSchema,
+  cloudBookInputSchema,
   hasPdfSignature,
   parseBookInput,
   progressSchema,
@@ -85,6 +86,32 @@ describe("progressSchema", () => {
   it("rejects negative and fractional pages", () => {
     expect(progressSchema.safeParse({ currentPage: -1 }).success).toBe(false);
     expect(progressSchema.safeParse({ currentPage: 1.5 }).success).toBe(false);
+  });
+});
+
+describe("cloudBookInputSchema", () => {
+  it("accepts a Blob-backed book record", () => {
+    expect(
+      cloudBookInputSchema.safeParse({
+        title: "Dune",
+        author: "",
+        category: "",
+        fileName: "dune.pdf",
+        fileHash: "a".repeat(64),
+        fileUrl: "https://example.blob.vercel-storage.com/dune.pdf",
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects an invalid hash", () => {
+    expect(
+      cloudBookInputSchema.safeParse({
+        title: "Dune",
+        fileName: "dune.pdf",
+        fileHash: "not-a-hash",
+        fileUrl: "https://example.blob.vercel-storage.com/dune.pdf",
+      }).success
+    ).toBe(false);
   });
 });
 

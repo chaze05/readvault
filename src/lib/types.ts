@@ -8,6 +8,7 @@ export type Book = {
   description: string | null;
   fileName: string | null;
   hasFile: boolean;
+  fileUrl?: string;
   totalPages: number;
   currentPage: number;
   status: BookStatus;

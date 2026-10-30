@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const MAX_FILE_BYTES = 50 * 1024 * 1024;
+
 const titleSchema = z
   .string()
   .trim()
@@ -29,6 +31,14 @@ const bookFields = {
 export const bookCreateSchema = z.object(bookFields);
 export const bookUpdateSchema = z.object(bookFields);
 
+export const cloudBookInputSchema = bookCreateSchema.extend({
+  fileName: z.string().trim().min(1).max(255),
+  fileHash: z
+    .string()
+    .regex(/^[a-f0-9]{64}$/i, "Invalid file hash."),
+  fileUrl: z.url("Invalid file URL."),
+});
+
 export const progressSchema = z.object({
   currentPage: z.number().int().min(0, "Page cannot be negative.").max(1_000_000),
   totalPages: z.number().int().min(0).max(1_000_000).optional(),
@@ -36,6 +46,7 @@ export const progressSchema = z.object({
 
 export type BookInput = z.infer<typeof bookCreateSchema>;
 export type BookUpdateInput = z.infer<typeof bookUpdateSchema>;
+export type CloudBookInput = z.infer<typeof cloudBookInputSchema>;
 export type ProgressInput = z.infer<typeof progressSchema>;
 
 function firstIssue(result: z.ZodSafeParseResult<unknown>): string {
@@ -62,6 +73,16 @@ export function parseBookUpdate(
   body: unknown
 ): { success: true; data: BookUpdateInput } | { success: false; error: string } {
   const result = bookUpdateSchema.safeParse(body);
+
+  return result.success
+    ? { success: true, data: result.data }
+    : { success: false, error: firstIssue(result) };
+}
+
+export function parseCloudBookInput(
+  body: unknown
+): { success: true; data: CloudBookInput } | { success: false; error: string } {
+  const result = cloudBookInputSchema.safeParse(body);
 
   return result.success
     ? { success: true, data: result.data }

@@ -89,6 +89,35 @@ Offline caveats:
 - `docs/ReadVault_Project_Plan.pdf` — original plan
 - `docs/ReadVault_Story_Time_Feature_Specification.pdf` — planned Story Time feature (not implemented yet)
 
+## Deploy to Vercel with Blob storage
+
+The live deployment uses **Vercel Blob** for PDFs and a small public `books.json` index, because Vercel Functions have a small request body limit and no persistent local disk. Uploads go from the browser directly to Blob; the server only writes metadata.
+
+Environment variables for the live project:
+
+| Variable | Value |
+| --- | --- |
+| `BLOB_READ_WRITE_TOKEN` | Added by connecting a Vercel Blob store |
+| `STORAGE_DRIVER` | `blob` |
+| `NEXT_PUBLIC_STORAGE_DRIVER` | `blob` |
+| `AUTH_SECRET` | Not needed yet (no accounts) |
+| `GEMINI_API_KEY` | Not needed yet (Story Time AI is future work) |
+
+Local development stays on SQLite when the storage driver variables are blank.
+
+**Privacy note:** the current live demo uses public Blob URLs and a public metadata index so it can run without authentication. Do not upload sensitive documents. Private storage, signed URLs, and per-user auth belong to the cloud-auth phase.
+
+### Deploy steps
+
+```bash
+vercel link
+vercel storage create readvault-blobs --type blob --access public
+vercel storage connect readvault-blobs --auth token --add-rw-token
+vercel env add STORAGE_DRIVER production --value blob --yes
+vercel env add NEXT_PUBLIC_STORAGE_DRIVER production --value blob --yes
+vercel --prod
+```
+
 ## Deployment note
 
 This starter is local-first. SQLite and local uploads do not persist on Vercel. Before a public or multi-device deployment, migrate the database and PDFs to managed persistent services, add authentication, and verify private storage access. See the future phases in `PROJECT_PLAN.md`.

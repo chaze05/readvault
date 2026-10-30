@@ -20,11 +20,13 @@ type OfflineState = "checking" | "ready" | "online";
 
 export function PdfReader({
   bookId,
+  fileUrl,
   initialPage,
   initialTotalPages,
   title,
 }: {
   bookId: number;
+  fileUrl?: string;
   initialPage: number;
   initialTotalPages: number;
   title: string;
@@ -70,7 +72,7 @@ export function PdfReader({
         const pdfjs = await import("pdfjs-dist");
         pdfjs.GlobalWorkerOptions.workerSrc = "/pdf.worker.min.mjs";
 
-        const url = `/api/books/${bookId}/file`;
+        const url = fileUrl ?? `/api/books/${bookId}/file`;
         let data: ArrayBuffer | null = null;
 
         if ("caches" in window) {
@@ -151,7 +153,7 @@ export function PdfReader({
       cancelled = true;
       void loadedDocument?.cleanup();
     };
-  }, [bookId]);
+  }, [bookId, fileUrl]);
 
   useEffect(() => {
     if (loading || error) return;

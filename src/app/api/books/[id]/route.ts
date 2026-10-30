@@ -1,7 +1,6 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getDb, rowToBook } from "@/lib/db";
-import { deletePdf } from "@/lib/storage";
+import { deleteBook, updateBook } from "@/lib/book-store";
 import { parseBookUpdate } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -16,7 +15,6 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const db = getDb();
   const { id } = await context.params;
   const bookId = parseId(id);
 
@@ -31,35 +29,18 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const result = db
-    .prepare(
-      `UPDATE books
-       SET title = ?, author = ?, category = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`
-    )
-    .run(
-      parsed.data.title,
-      parsed.data.author,
-      parsed.data.category,
-      bookId
-    );
-
-  if (result.changes === 0) {
+  const book = await updateBook(bookId, parsed.data);
+  if (!book) {
     return NextResponse.json({ error: "Book not found." }, { status: 404 });
   }
 
-  const row = db
-    .prepare("SELECT * FROM books WHERE id = ?")
-    .get(bookId) as Record<string, unknown>;
-
-  return NextResponse.json(rowToBook(row));
+  return NextResponse.json(book);
 }
 
 export async function DELETE(
   _request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const db = getDb();
   const { id } = await context.params;
   const bookId = parseId(id);
 
@@ -67,27 +48,10 @@ export async function DELETE(
     return NextResponse.json({ error: "Invalid book id." }, { status: 400 });
   }
 
-  const row = db
-    .prepare("SELECT file_path FROM books WHERE id = ?")
-    .get(bookId) as { file_path?: string } | undefined;
-
-  if (!row) {
+  const deleted = await deleteBook(bookId);
+  if (!deleted) {
     return NextResponse.json({ error: "Book not found." }, { status: 404 });
   }
 
-  db.prepare("DELETE FROM books WHERE id = ?").run(bookId);
-
-  let fileDeleted = false;
-  if (row.file_path) {
-    try {
-      fileDeleted = deletePdf(row.file_path);
-    } catch (error) {
-      console.error(
-        "[books] file cleanup failed:",
-        error instanceof Error ? error.message : "unknown error"
-      );
-    }
-  }
-
-  return NextResponse.json({ success: true, fileDeleted });
+  return NextResponse.json({ success: true });
 }

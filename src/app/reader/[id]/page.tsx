@@ -3,7 +3,7 @@ import { notFound } from "next/navigation";
 import { ArrowLeft, BookOpen } from "lucide-react";
 
 import { PdfReader } from "@/components/pdf-reader";
-import { getDb, rowToBook } from "@/lib/db";
+import { getBook } from "@/lib/book-store";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,14 +13,10 @@ export default async function ReaderPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const db = getDb();
   const { id } = await params;
-  const row = db
-    .prepare("SELECT * FROM books WHERE id = ?")
-    .get(Number(id)) as Record<string, unknown> | undefined;
+  const book = await getBook(Number(id));
 
-  if (!row) notFound();
-  const book = rowToBook(row);
+  if (!book) notFound();
 
   return (
     <main className="min-h-screen bg-[#f7f8f4]">
@@ -42,6 +38,7 @@ export default async function ReaderPage({
           <>
             <PdfReader
               bookId={book.id}
+              fileUrl={book.fileUrl}
               initialPage={book.currentPage}
               initialTotalPages={book.totalPages}
               title={book.title}

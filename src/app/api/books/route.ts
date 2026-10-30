@@ -1,28 +1,50 @@
 import { NextRequest, NextResponse } from "next/server";
 
-import { getDb, rowToBook } from "@/lib/db";
+import { DuplicateBookError } from "@/lib/book-errors";
+import { createBook, listBooks } from "@/lib/book-store";
 import { sha256 } from "@/lib/hash";
-import { deletePdf, savePdf } from "@/lib/storage";
-import { hasPdfSignature, parseBookInput } from "@/lib/validation";
+import { isCloudMode } from "@/lib/storage-mode";
+import {
+  MAX_FILE_BYTES,
+  hasPdfSignature,
+  parseBookInput,
+  parseCloudBookInput,
+} from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-const colors = ["#344d43", "#3f6681", "#8b6347", "#655b83", "#47736e", "#6f7650"];
-const MAX_BYTES = 50 * 1024 * 1024;
-
 export async function GET() {
-  const db = getDb();
-  const rows = db
-    .prepare("SELECT * FROM books ORDER BY updated_at DESC, id DESC")
-    .all() as Record<string, unknown>[];
-
-  return NextResponse.json(rows.map(rowToBook));
+  const books = await listBooks();
+  return NextResponse.json(books);
 }
 
 export async function POST(request: NextRequest) {
   try {
-    const db = getDb();
+    if (isCloudMode()) {
+      const body = await request.json().catch(() => null);
+      const parsed = parseCloudBookInput(body);
+
+      if (!parsed.success) {
+        return NextResponse.json({ error: parsed.error }, { status: 400 });
+      }
+
+      try {
+        const book = await createBook({ ...parsed.data });
+        return NextResponse.json(book, { status: 201 });
+      } catch (error) {
+        if (error instanceof DuplicateBookError) {
+          const { cleanupCloudBlob } = await import("@/lib/cloud-store");
+          await cleanupCloudBlob(parsed.data.fileUrl);
+          return NextResponse.json(
+            { error: error.message, bookId: error.existingId },
+            { status: 409 }
+          );
+        }
+        throw error;
+      }
+    }
+
     const form = await request.formData();
     const parsed = parseBookInput(form);
 
@@ -48,7 +70,7 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    if (file.size > MAX_BYTES) {
+    if (file.size > MAX_FILE_BYTES) {
       return NextResponse.json(
         { error: "PDF must be 50 MB or smaller." },
         { status: 400 }
@@ -63,50 +85,22 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const fileHash = sha256(buffer);
-    const duplicate = db
-      .prepare("SELECT id FROM books WHERE file_hash = ?")
-      .get(fileHash) as { id: number } | undefined;
+    const book = await createBook({
+      ...parsed.data,
+      fileName: file.name,
+      fileHash: sha256(buffer),
+      buffer,
+    });
 
-    if (duplicate) {
+    return NextResponse.json(book, { status: 201 });
+  } catch (error) {
+    if (error instanceof DuplicateBookError) {
       return NextResponse.json(
-        {
-          error: "This PDF is already in your library.",
-          bookId: duplicate.id,
-        },
+        { error: error.message, bookId: error.existingId },
         { status: 409 }
       );
     }
 
-    const stored = savePdf(buffer);
-
-    try {
-      const result = db
-        .prepare(
-          `INSERT INTO books
-             (title, author, category, file_name, file_path, file_hash, status, cover_color)
-           VALUES (?, ?, ?, ?, ?, ?, 'not_started', ?)`
-        )
-        .run(
-          parsed.data.title,
-          parsed.data.author,
-          parsed.data.category,
-          file.name,
-          stored.filePath,
-          fileHash,
-          colors[Math.floor(Math.random() * colors.length)]
-        );
-
-      const row = db
-        .prepare("SELECT * FROM books WHERE id = ?")
-        .get(result.lastInsertRowid) as Record<string, unknown>;
-
-      return NextResponse.json(rowToBook(row), { status: 201 });
-    } catch (error) {
-      deletePdf(stored.filePath);
-      throw error;
-    }
-  } catch (error) {
     console.error(
       "[books] upload failed:",
       error instanceof Error ? error.message : "unknown error"

@@ -10,4 +10,8 @@ data/uploads/*
 !.gitkeep
 *.log
 .DS_Store
+.vercel
 public/pdf.worker.min.mjs
+
+.vercel
+.env*

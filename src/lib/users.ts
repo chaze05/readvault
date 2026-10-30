@@ -44,3 +44,53 @@ export async function findUserById(id: string): Promise<UserRecord | null> {
 
   return rows[0] ?? null;
 }
+
+export async function findPasswordHashById(id: string): Promise<string | null> {
+  const { rows } = await query<{ password_hash: string }>(
+    "select password_hash from public.users where id = $1",
+    [id]
+  );
+
+  return rows[0]?.password_hash ?? null;
+}
+
+export async function updateUserPassword(
+  userId: string,
+  passwordHash: string
+): Promise<number> {
+  const { rows } = await query<{ session_version: number }>(
+    `update public.users
+     set password_hash = $2,
+         must_change_password = false,
+         session_version = session_version + 1
+     where id = $1
+     returning session_version`,
+    [userId, passwordHash]
+  );
+
+  const row = rows[0];
+  if (!row) {
+    throw new Error("User not found.");
+  }
+
+  return row.session_version;
+}
+
+export async function incrementSessionVersion(
+  userId: string
+): Promise<number> {
+  const { rows } = await query<{ session_version: number }>(
+    `update public.users
+     set session_version = session_version + 1
+     where id = $1
+     returning session_version`,
+    [userId]
+  );
+
+  const row = rows[0];
+  if (!row) {
+    throw new Error("User not found.");
+  }
+
+  return row.session_version;
+}

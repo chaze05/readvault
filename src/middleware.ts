@@ -38,6 +38,12 @@ export async function middleware(request: NextRequest) {
   }
 
   if (session && pathname === "/login") {
+    if (request.nextUrl.searchParams.get("expired") === "1") {
+      const response = NextResponse.next({ request });
+      response.cookies.delete(SESSION_COOKIE);
+      return response;
+    }
+
     const settingsUrl = request.nextUrl.clone();
     settingsUrl.pathname = "/settings";
     settingsUrl.search = session.mustChangePassword

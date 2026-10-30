@@ -32,17 +32,26 @@ export async function PATCH(request: NextRequest) {
   }
 
   const { kind, id, isFavorite } = parsed.data;
-  const updated = await setFavorite(user.id, kind, id, isFavorite);
 
-  if (!updated) {
-    return errorResponse(
-      kind === "book" ? "Book not found." : "Story not found.",
-      404
+  try {
+    const updated = await setFavorite(user.id, kind, id, isFavorite);
+
+    if (!updated) {
+      return errorResponse(
+        kind === "book" ? "Book not found." : "Story not found.",
+        404
+      );
+    }
+
+    return NextResponse.json(
+      { kind, id, isFavorite },
+      { headers: AUTHENTICATED_CACHE_HEADERS }
     );
+  } catch (error) {
+    console.error(
+      "[favorites] update failed:",
+      error instanceof Error ? error.message : "unknown error"
+    );
+    return errorResponse("Unable to update this favorite.", 500);
   }
-
-  return NextResponse.json(
-    { kind, id, isFavorite },
-    { headers: AUTHENTICATED_CACHE_HEADERS }
-  );
 }

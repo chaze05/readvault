@@ -5,17 +5,12 @@ import { ArrowLeft, BookOpen } from "lucide-react";
 import { PdfReader } from "@/components/pdf-reader";
 import { getBook } from "@/lib/book-store";
 import { requireActiveUser } from "@/lib/current-user";
+import { clampPage, parseRequestedPage } from "@/lib/page-query";
 import { getPreferences } from "@/lib/preferences";
 import { isUuid } from "@/lib/uuid";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function parseRequestedPage(value: string | undefined): number | null {
-  if (typeof value !== "string" || value.trim() === "") return null;
-  const parsed = Number(value);
-  return Number.isInteger(parsed) ? parsed : null;
-}
 
 export default async function ReaderPage({
   params,
@@ -39,10 +34,7 @@ export default async function ReaderPage({
   const initialPage =
     requestedPage === null
       ? book.currentPage
-      : Math.min(
-          Math.max(1, requestedPage),
-          book.totalPages > 0 ? book.totalPages : Math.max(1, requestedPage)
-        );
+      : clampPage(requestedPage, book.totalPages);
 
   return (
     <main className="min-h-screen bg-[#f7f8f4]">

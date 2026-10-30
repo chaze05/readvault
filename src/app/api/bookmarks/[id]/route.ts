@@ -80,13 +80,21 @@ export async function DELETE(
     return errorResponse("Invalid bookmark id.", 400);
   }
 
-  const deleted = await deleteBookmark(user.id, id);
-  if (!deleted) {
-    return errorResponse("Bookmark not found.", 404);
-  }
+  try {
+    const deleted = await deleteBookmark(user.id, id);
+    if (!deleted) {
+      return errorResponse("Bookmark not found.", 404);
+    }
 
-  return NextResponse.json(
-    { success: true },
-    { headers: AUTHENTICATED_CACHE_HEADERS }
-  );
+    return NextResponse.json(
+      { success: true },
+      { headers: AUTHENTICATED_CACHE_HEADERS }
+    );
+  } catch (error) {
+    console.error(
+      "[bookmarks] delete failed:",
+      error instanceof Error ? error.message : "unknown error"
+    );
+    return errorResponse("Unable to delete this bookmark.", 500);
+  }
 }

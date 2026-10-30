@@ -2,18 +2,13 @@ import { notFound, redirect } from "next/navigation";
 
 import { StoryReader } from "@/components/story-reader";
 import { requireActiveUser } from "@/lib/current-user";
+import { clampPage, parseRequestedPage } from "@/lib/page-query";
 import { getPreferences } from "@/lib/preferences";
 import { getStory } from "@/lib/story-store";
 import { isUuid } from "@/lib/uuid";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
-
-function parseRequestedPage(value: string | undefined): number | null {
-  if (typeof value !== "string" || value.trim() === "") return null;
-  const parsed = Number(value);
-  return Number.isInteger(parsed) ? parsed : null;
-}
 
 export default async function ReadStoryPage({
   params,
@@ -38,10 +33,7 @@ export default async function ReadStoryPage({
   const initialPage =
     requestedPage === null
       ? undefined
-      : Math.min(
-          Math.max(1, requestedPage),
-          pageCount > 0 ? pageCount : Math.max(1, requestedPage)
-        );
+      : clampPage(requestedPage, pageCount);
 
   return (
     <StoryReader

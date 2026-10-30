@@ -45,9 +45,18 @@ export async function GET(request: NextRequest) {
         ? ({ kind: "story", id: storyId } as const)
         : undefined;
 
-  return NextResponse.json(await listBookmarks(user.id, target), {
-    headers: AUTHENTICATED_CACHE_HEADERS,
-  });
+  try {
+    const bookmarks = await listBookmarks(user.id, target);
+    return NextResponse.json(bookmarks, {
+      headers: AUTHENTICATED_CACHE_HEADERS,
+    });
+  } catch (error) {
+    console.error(
+      "[bookmarks] list failed:",
+      error instanceof Error ? error.message : "unknown error"
+    );
+    return errorResponse("Unable to load bookmarks.", 500);
+  }
 }
 
 export async function POST(request: NextRequest) {

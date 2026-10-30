@@ -14,8 +14,10 @@ import {
   Volume2,
 } from "lucide-react";
 
+import { BookmarkButton } from "@/components/bookmarks/bookmark-button";
+import { FavoriteButton } from "@/components/favorites/favorite-button";
 import type { StoryTextSize } from "@/lib/preferences";
-import type { Story } from "@/lib/types";
+import type { BookmarkItem, Story } from "@/lib/types";
 
 const TEXT_SIZE_CLASS: Record<StoryTextSize, string> = {
   small: "story-text-small",
@@ -28,11 +30,13 @@ export function StoryReader({
   initialStory,
   textSize,
   initialPage,
+  isFavorite,
 }: {
   storyId: string;
   initialStory: Story;
   textSize: StoryTextSize;
   initialPage?: number;
+  isFavorite: boolean;
 }) {
   const [story] = useState(initialStory);
   const [pageIndex, setPageIndex] = useState(() =>
@@ -43,6 +47,7 @@ export function StoryReader({
   );
   const [speaking, setSpeaking] = useState(false);
   const [curtainVisible, setCurtainVisible] = useState(true);
+  const [bookmarks, setBookmarks] = useState<BookmarkItem[]>([]);
   const pages = story.pages || [];
   const page = pages[pageIndex];
   const storageKey = `readvault-story-progress-${storyId}`;
@@ -51,6 +56,28 @@ export function StoryReader({
     const timer = window.setTimeout(() => setCurtainVisible(false), 1_300);
     return () => window.clearTimeout(timer);
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBookmarks() {
+      try {
+        const response = await fetch(
+          `/api/bookmarks?storyId=${encodeURIComponent(storyId)}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) return;
+        const data = (await response.json()) as BookmarkItem[];
+        if (!cancelled && Array.isArray(data)) setBookmarks(data);
+      } catch {}
+    }
+
+    void loadBookmarks();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [storyId]);
 
   useEffect(() => {
     if (initialPage !== undefined) return;
@@ -101,6 +128,23 @@ export function StoryReader({
     if ("speechSynthesis" in window) window.speechSynthesis.cancel();
     setSpeaking(false);
   }
+
+  function handleBookmarkChange(
+    bookmark: BookmarkItem | null,
+    changedPage: number
+  ) {
+    setBookmarks((current) => {
+      const remaining = current.filter(
+        (item) =>
+          item.pageNumber !== changedPage && item.id !== bookmark?.id
+      );
+      return bookmark ? [bookmark, ...remaining] : remaining;
+    });
+  }
+
+  const pageBookmark = bookmarks.find(
+    (bookmark) => bookmark.pageNumber === pageIndex + 1
+  );
 
   if (!pages.length) {
     return (
@@ -158,6 +202,20 @@ export function StoryReader({
             </p>
           </div>
           <div className="flex items-center gap-2">
+            <BookmarkButton
+              key={`bookmark-${pageIndex}`}
+              kind="story"
+              targetId={storyId}
+              pageNumber={pageIndex + 1}
+              initialBookmarked={Boolean(pageBookmark)}
+              initialBookmarkId={pageBookmark?.id}
+              onChange={handleBookmarkChange}
+            />
+            <FavoriteButton
+              kind="story"
+              targetId={storyId}
+              initialFavorite={isFavorite}
+            />
             <button
               type="button"
               onClick={() => window.print()}

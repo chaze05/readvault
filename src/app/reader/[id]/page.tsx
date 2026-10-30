@@ -61,6 +61,7 @@ export default async function ReaderPage({
               initialTotalPages={book.totalPages}
               initialZoom={preferences.pdfZoom / 100}
               title={book.title}
+              isFavorite={book.isFavorite}
             />
             <p className="mt-3 text-center text-[11px] text-muted">
               Opened PDFs are cached for offline reading. Add ReadVault to your

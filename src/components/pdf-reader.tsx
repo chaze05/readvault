@@ -14,6 +14,10 @@ import {
   WifiOff,
 } from "lucide-react";
 
+import { BookmarkButton } from "@/components/bookmarks/bookmark-button";
+import { FavoriteButton } from "@/components/favorites/favorite-button";
+import type { BookmarkItem } from "@/lib/types";
+
 const PDF_CACHE = "readvault-pdfs-v2";
 
 type OfflineState = "checking" | "ready" | "online";
@@ -25,6 +29,7 @@ export function PdfReader({
   initialTotalPages,
   initialZoom,
   title,
+  isFavorite,
 }: {
   bookId: string;
   fileUrl?: string;
@@ -32,10 +37,12 @@ export function PdfReader({
   initialTotalPages: number;
   initialZoom: number;
   title: string;
+  isFavorite: boolean;
 }) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageNumber, setPageNumber] = useState(Math.max(1, initialPage));
   const [totalPages, setTotalPages] = useState(initialTotalPages);
+  const [bookmarks, setBookmarks] = useState<BookmarkItem[]>([]);
   const [zoom, setZoom] = useState(initialZoom);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -60,6 +67,28 @@ export function PdfReader({
 
     return () => observer.disconnect();
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    async function loadBookmarks() {
+      try {
+        const response = await fetch(
+          `/api/bookmarks?bookId=${encodeURIComponent(bookId)}`,
+          { cache: "no-store" }
+        );
+        if (!response.ok) return;
+        const data = (await response.json()) as BookmarkItem[];
+        if (!cancelled && Array.isArray(data)) setBookmarks(data);
+      } catch {}
+    }
+
+    void loadBookmarks();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [bookId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -246,6 +275,23 @@ export function PdfReader({
     setPageNumber(Math.min(Math.max(1, Math.round(value)), max));
   }
 
+  function handleBookmarkChange(
+    bookmark: BookmarkItem | null,
+    changedPage: number
+  ) {
+    setBookmarks((current) => {
+      const remaining = current.filter(
+        (item) =>
+          item.pageNumber !== changedPage && item.id !== bookmark?.id
+      );
+      return bookmark ? [bookmark, ...remaining] : remaining;
+    });
+  }
+
+  const pageBookmark = bookmarks.find(
+    (bookmark) => bookmark.pageNumber === pageNumber
+  );
+
   async function toggleFullscreen() {
     if (!containerRef.current) return;
     if (document.fullscreenElement) {
@@ -317,6 +363,20 @@ export function PdfReader({
         </div>
 
         <div className="flex flex-wrap items-center gap-1.5">
+          <BookmarkButton
+            key={`bookmark-${pageNumber}`}
+            kind="book"
+            targetId={bookId}
+            pageNumber={pageNumber}
+            initialBookmarked={Boolean(pageBookmark)}
+            initialBookmarkId={pageBookmark?.id}
+            onChange={handleBookmarkChange}
+          />
+          <FavoriteButton
+            kind="book"
+            targetId={bookId}
+            initialFavorite={isFavorite}
+          />
           <span
             className={`mr-1 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ${
               offlineState === "ready"

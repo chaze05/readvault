@@ -41,6 +41,7 @@ export default async function ReadStoryPage({
       initialStory={story}
       textSize={preferences.storyTextSize}
       initialPage={initialPage}
+      isFavorite={story.isFavorite}
     />
   );
 }

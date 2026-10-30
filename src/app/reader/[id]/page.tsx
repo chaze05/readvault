@@ -44,6 +44,7 @@ export default async function ReaderPage({
               bookId={book.id}
               initialPage={book.currentPage}
               initialTotalPages={book.totalPages}
+              title={book.title}
             />
             <p className="mt-3 text-center text-[11px] text-muted">
               Opened PDFs are cached for offline reading. Add ReadVault to your

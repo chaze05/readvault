@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import type { PDFDocumentProxy } from "pdfjs-dist";
 import {
+  BookOpen,
   CheckCircle2,
   ChevronLeft,
   ChevronRight,
@@ -21,10 +22,12 @@ export function PdfReader({
   bookId,
   initialPage,
   initialTotalPages,
+  title,
 }: {
   bookId: number;
   initialPage: number;
   initialTotalPages: number;
+  title: string;
 }) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageNumber, setPageNumber] = useState(Math.max(1, initialPage));
@@ -36,6 +39,8 @@ export function PdfReader({
   const [saved, setSaved] = useState(false);
   const [offlineState, setOfflineState] = useState<OfflineState>("checking");
   const [containerWidth, setContainerWidth] = useState(0);
+  const [curtainLeaving, setCurtainLeaving] = useState(false);
+  const [curtainVisible, setCurtainVisible] = useState(true);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
 
@@ -133,6 +138,7 @@ export function PdfReader({
               ? loadError.message
               : "Could not load this PDF."
           );
+          setCurtainVisible(false);
         }
       } finally {
         if (!cancelled) setLoading(false);
@@ -146,6 +152,17 @@ export function PdfReader({
       void loadedDocument?.cleanup();
     };
   }, [bookId]);
+
+  useEffect(() => {
+    if (loading || error) return;
+
+    const timer = window.setTimeout(() => {
+      setCurtainLeaving(true);
+      window.setTimeout(() => setCurtainVisible(false), 600);
+    }, 400);
+
+    return () => window.clearTimeout(timer);
+  }, [loading, error]);
 
   useEffect(() => {
     if (!pdf) return;
@@ -238,7 +255,30 @@ export function PdfReader({
     "inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-line bg-white px-2.5 text-xs font-semibold text-muted transition hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-40";
 
   return (
-    <div className="overflow-hidden rounded-2xl border border-line bg-white shadow-soft">
+    <div className="relative overflow-hidden rounded-2xl border border-line bg-white shadow-soft">
+      {curtainVisible && (
+        <div className={`reader-curtain ${curtainLeaving ? "leaving" : ""}`}>
+          <div className="curtain-sparkles" aria-hidden="true">
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+            <span />
+          </div>
+          <div className="curtain-content">
+            <div className="curtain-book">
+              <BookOpen size={34} />
+            </div>
+            <p className="curtain-kicker">Story time</p>
+            <h2 className="curtain-title">{title}</h2>
+            <p className="curtain-note">
+              Take a breath. The next page is waiting.
+            </p>
+          </div>
+        </div>
+      )}
+
       <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-3 py-2.5">
         <div className="flex items-center gap-1.5">
           <button
@@ -346,8 +386,9 @@ export function PdfReader({
         )}
 
         <canvas
+          key={`${pageNumber}-${zoom}`}
           ref={canvasRef}
-          className={`mx-auto block shadow-lg ${loading || error ? "hidden" : ""}`}
+          className={`reader-page-enter mx-auto block shadow-lg ${loading || error ? "hidden" : ""}`}
         />
       </div>
 

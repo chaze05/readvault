@@ -66,7 +66,13 @@ export function SecurityForm({
     setSigningOutAll(true);
 
     try {
-      await signOutAllAction();
+      const result = await signOutAllAction();
+
+      if (result && "error" in result) {
+        setSigningOutAll(false);
+        setConfirmSignOutAll(false);
+        setError(result.error);
+      }
     } catch {
       setSigningOutAll(false);
       setConfirmSignOutAll(false);

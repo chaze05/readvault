@@ -17,6 +17,8 @@ const SESSION_EXPIRED_ERROR =
   "Your session has expired. Sign in again to continue.";
 const UPDATE_FAILED_ERROR =
   "Could not update your password. Please try again.";
+const SIGN_OUT_ALL_FAILED_ERROR =
+  "Could not sign out all devices. Please try again.";
 
 function formString(formData: FormData, key: string): string {
   const value = formData.get(key);
@@ -80,18 +82,21 @@ export async function changePasswordAction(
   }
 }
 
-export async function signOutAllAction(): Promise<void> {
+type SignOutAllResult = { ok: true } | { error: string };
+
+export async function signOutAllAction(): Promise<SignOutAllResult> {
   const user = await getCurrentUser();
 
-  try {
-    if (user) {
+  if (user) {
+    try {
       await incrementSessionVersion(user.id);
+    } catch (error) {
+      console.error(
+        "[settings] sign out all failed:",
+        error instanceof Error ? error.message : "unknown error"
+      );
+      return { error: SIGN_OUT_ALL_FAILED_ERROR };
     }
-  } catch (error) {
-    console.error(
-      "[settings] sign out all failed:",
-      error instanceof Error ? error.message : "unknown error"
-    );
   }
 
   await clearSessionCookie();

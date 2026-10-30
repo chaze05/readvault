@@ -20,6 +20,7 @@ interface BookRow {
   current_page: number;
   status: BookStatus;
   cover_color: string;
+  is_favorite: boolean;
   created_at: Date | string;
   updated_at: Date | string;
 }
@@ -51,6 +52,7 @@ function toBook(row: BookRow): Book {
     currentPage: Number(row.current_page),
     status: row.status,
     coverColor: row.cover_color,
+    isFavorite: Boolean(row.is_favorite),
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),
   };

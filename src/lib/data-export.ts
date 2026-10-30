@@ -36,6 +36,7 @@ interface StoryRow {
   language: string;
   cover_image_path: string | null;
   status: StoryStatus;
+  is_favorite: boolean;
   page_count: number | string;
   current_page: number | string;
   created_at: Date | string;
@@ -106,6 +107,7 @@ function toStory(row: StoryRow, pages: StoryPageRow[]): Story {
     status: row.status,
     pageCount: Number(row.page_count || 0),
     currentPage: Number(row.current_page || 1),
+    isFavorite: Boolean(row.is_favorite),
     pages: pages.map(toStoryPage),
     createdAt: iso(row.created_at),
     updatedAt: iso(row.updated_at),

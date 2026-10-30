@@ -147,6 +147,30 @@ export const progressSchema = z.object({
   totalPages: z.number().int().min(0).max(1_000_000).optional(),
 });
 
+export const bookmarkTargetSchema = z
+  .object({
+    bookId: z.uuid().optional(),
+    storyId: z.uuid().optional(),
+    pageNumber: z.number().int().min(1, "Page number must be at least 1."),
+  })
+  .refine((value) => Boolean(value.bookId) !== Boolean(value.storyId), {
+    message: "Choose exactly one of a book or a story.",
+  });
+
+export const bookmarkNoteSchema = z.object({
+  note: z
+    .string()
+    .trim()
+    .max(500, "Note must be 500 characters or fewer.")
+    .default(""),
+});
+
+export const favoriteInputSchema = z.object({
+  kind: z.enum(["book", "story"]),
+  id: z.uuid(),
+  isFavorite: z.boolean(),
+});
+
 export type BookInput = z.infer<typeof bookCreateSchema>;
 export type BookUpdateInput = z.infer<typeof bookUpdateSchema>;
 export type CloudBookInput = z.infer<typeof cloudBookInputSchema>;
@@ -160,6 +184,9 @@ export type PreferencesInput = z.infer<typeof preferencesSchema>;
 export type AiSettingsInput = z.infer<typeof aiSettingsInputSchema>;
 export type StoryInput = z.infer<typeof storyInputSchema>;
 export type AiStoryInput = z.infer<typeof aiStorySchema>;
+export type BookmarkTargetInput = z.infer<typeof bookmarkTargetSchema>;
+export type BookmarkNoteInput = z.infer<typeof bookmarkNoteSchema>;
+export type FavoriteInput = z.infer<typeof favoriteInputSchema>;
 
 function firstIssue(result: z.ZodSafeParseResult<unknown>): string {
   return result.success

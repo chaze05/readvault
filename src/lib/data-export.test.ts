@@ -67,6 +67,7 @@ const book = {
   currentPage: 1,
   status: "reading" as const,
   coverColor: "#315b45",
+  isFavorite: false,
   createdAt: "2026-01-01T00:00:00.000Z",
   updatedAt: "2026-01-01T00:00:00.000Z",
 };
@@ -81,6 +82,7 @@ const storyRow = {
   language: "en",
   cover_image_path: "https://blob.example/cover.png",
   status: "published" as const,
+  is_favorite: false,
   page_count: "1",
   current_page: "1",
   created_at: "2026-01-01T00:00:00.000Z",

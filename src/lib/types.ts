@@ -13,6 +13,7 @@ export type Book = {
   currentPage: number;
   status: BookStatus;
   coverColor: string;
+  isFavorite: boolean;
   createdAt: string;
   updatedAt: string;
 };
@@ -40,7 +41,31 @@ export type Story = {
   status: StoryStatus;
   pageCount: number;
   currentPage: number;
+  isFavorite: boolean;
   pages?: StoryPage[];
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type BookmarkKind = "book" | "story";
+
+export type BookmarkTarget = {
+  kind: BookmarkKind;
+  id: string;
+  pageNumber: number;
+};
+
+export type BookmarkItem = {
+  id: string;
+  kind: BookmarkKind;
+  targetId: string;
+  title: string;
+  pageNumber: number;
+  note: string;
+  pageCount: number;
+  author: string;
+  coverColor: string;
+  coverImageUrl: string;
   createdAt: string;
   updatedAt: string;
 };

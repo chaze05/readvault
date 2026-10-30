@@ -3,10 +3,13 @@ import { describe, expect, it } from "vitest";
 import {
   aiSettingsInputSchema,
   bookCreateSchema,
+  bookmarkNoteSchema,
+  bookmarkTargetSchema,
   bookUpdateSchema,
   cloudBookInputSchema,
   deleteAccountSchema,
   familyAccountInputSchema,
+  favoriteInputSchema,
   hasPdfSignature,
   parseBookInput,
   passwordChangeSchema,
@@ -263,6 +266,102 @@ describe("familyAccountInputSchema", () => {
       familyAccountInputSchema.safeParse({
         email: "family@example.com",
         method: "email",
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe("bookmarkTargetSchema", () => {
+  it("accepts exactly one book or story target", () => {
+    expect(
+      bookmarkTargetSchema.safeParse({
+        bookId: crypto.randomUUID(),
+        pageNumber: 3,
+      }).success
+    ).toBe(true);
+    expect(
+      bookmarkTargetSchema.safeParse({
+        storyId: crypto.randomUUID(),
+        pageNumber: 1,
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects both or neither target", () => {
+    expect(
+      bookmarkTargetSchema.safeParse({
+        bookId: crypto.randomUUID(),
+        storyId: crypto.randomUUID(),
+        pageNumber: 3,
+      }).success
+    ).toBe(false);
+    expect(bookmarkTargetSchema.safeParse({ pageNumber: 3 }).success).toBe(
+      false
+    );
+  });
+
+  it("rejects non-positive and fractional page numbers", () => {
+    expect(
+      bookmarkTargetSchema.safeParse({
+        bookId: crypto.randomUUID(),
+        pageNumber: 0,
+      }).success
+    ).toBe(false);
+    expect(
+      bookmarkTargetSchema.safeParse({
+        bookId: crypto.randomUUID(),
+        pageNumber: 1.5,
+      }).success
+    ).toBe(false);
+  });
+});
+
+describe("bookmarkNoteSchema", () => {
+  it("accepts empty and 500-character notes", () => {
+    expect(bookmarkNoteSchema.safeParse({ note: "" }).success).toBe(true);
+    expect(
+      bookmarkNoteSchema.safeParse({ note: "x".repeat(500) }).success
+    ).toBe(true);
+  });
+
+  it("rejects notes over 500 characters", () => {
+    expect(
+      bookmarkNoteSchema.safeParse({ note: "x".repeat(501) }).success
+    ).toBe(false);
+  });
+});
+
+describe("favoriteInputSchema", () => {
+  it("accepts book and story favorites", () => {
+    expect(
+      favoriteInputSchema.safeParse({
+        kind: "book",
+        id: crypto.randomUUID(),
+        isFavorite: true,
+      }).success
+    ).toBe(true);
+    expect(
+      favoriteInputSchema.safeParse({
+        kind: "story",
+        id: crypto.randomUUID(),
+        isFavorite: false,
+      }).success
+    ).toBe(true);
+  });
+
+  it("rejects other kinds and invalid ids", () => {
+    expect(
+      favoriteInputSchema.safeParse({
+        kind: "movie",
+        id: crypto.randomUUID(),
+        isFavorite: true,
+      }).success
+    ).toBe(false);
+    expect(
+      favoriteInputSchema.safeParse({
+        kind: "book",
+        id: "not-a-uuid",
+        isFavorite: true,
       }).success
     ).toBe(false);
   });

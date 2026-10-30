@@ -6,15 +6,18 @@ import {
   ShieldCheck,
   SlidersHorizontal,
   UserRound,
+  UsersRound,
 } from "lucide-react";
 
 import { MobileNav } from "@/components/mobile-nav";
 import { AccountSummary } from "@/components/settings/account-summary";
 import { DataForm } from "@/components/settings/data-form";
+import { FamilySection } from "@/components/settings/family-section";
 import { ReadingForm } from "@/components/settings/reading-form";
 import { SecurityForm } from "@/components/settings/security-form";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { Sidebar } from "@/components/sidebar";
+import { listFamilyAccounts } from "@/lib/admin-accounts";
 import { getCurrentUser } from "@/lib/current-user";
 import { getPreferences } from "@/lib/preferences";
 import { getSession } from "@/lib/session-cookies";
@@ -34,6 +37,14 @@ export default async function SettingsPage() {
   }
 
   const preferences = await getPreferences(user.id);
+  const familyAccounts = user.isAdmin
+    ? (await listFamilyAccounts()).map((account) => ({
+        id: account.id,
+        email: account.email,
+        createdAt: new Date(account.createdAt).toISOString(),
+        isAdmin: account.isAdmin,
+      }))
+    : [];
 
   return (
     <div className="app-shell">
@@ -99,6 +110,16 @@ export default async function SettingsPage() {
               >
                 <DataForm email={user.email} />
               </SettingsSection>
+
+              {user.isAdmin && (
+                <SettingsSection
+                  title="Family"
+                  description="Create accounts for your family and issue one-time reset links."
+                  icon={<UsersRound size={20} />}
+                >
+                  <FamilySection accounts={familyAccounts} />
+                </SettingsSection>
+              )}
             </div>
           </div>
         </div>

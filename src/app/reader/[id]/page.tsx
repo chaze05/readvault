@@ -11,10 +11,18 @@ import { isUuid } from "@/lib/uuid";
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+function parseRequestedPage(value: string | undefined): number | null {
+  if (typeof value !== "string" || value.trim() === "") return null;
+  const parsed = Number(value);
+  return Number.isInteger(parsed) ? parsed : null;
+}
+
 export default async function ReaderPage({
   params,
+  searchParams,
 }: {
   params: Promise<{ id: string }>;
+  searchParams: Promise<{ page?: string }>;
 }) {
   const user = await requireActiveUser();
   if (!user) redirect("/login");
@@ -26,6 +34,15 @@ export default async function ReaderPage({
   if (!book) notFound();
 
   const preferences = await getPreferences(user.id);
+  const { page } = await searchParams;
+  const requestedPage = parseRequestedPage(page);
+  const initialPage =
+    requestedPage === null
+      ? book.currentPage
+      : Math.min(
+          Math.max(1, requestedPage),
+          book.totalPages > 0 ? book.totalPages : Math.max(1, requestedPage)
+        );
 
   return (
     <main className="min-h-screen bg-[#f7f8f4]">
@@ -48,7 +65,7 @@ export default async function ReaderPage({
             <PdfReader
               bookId={book.id}
               fileUrl={book.fileUrl}
-              initialPage={book.currentPage}
+              initialPage={initialPage}
               initialTotalPages={book.totalPages}
               initialZoom={preferences.pdfZoom / 100}
               title={book.title}

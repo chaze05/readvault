@@ -27,15 +27,17 @@ export function StoryReader({
   storyId,
   initialStory,
   textSize,
+  initialPage,
 }: {
   storyId: string;
   initialStory: Story;
   textSize: StoryTextSize;
+  initialPage?: number;
 }) {
   const [story] = useState(initialStory);
   const [pageIndex, setPageIndex] = useState(() =>
     Math.min(
-      Math.max(0, initialStory.currentPage - 1),
+      Math.max(0, (initialPage ?? initialStory.currentPage) - 1),
       Math.max(0, (initialStory.pages?.length || 1) - 1)
     )
   );
@@ -51,13 +53,14 @@ export function StoryReader({
   }, []);
 
   useEffect(() => {
+    if (initialPage !== undefined) return;
     const stored = window.localStorage.getItem(storageKey);
     if (!stored) return;
     const storedPage = Number(stored);
     if (Number.isFinite(storedPage) && storedPage > 0) {
       setPageIndex(Math.min(Math.max(0, storedPage - 1), Math.max(0, pages.length - 1)));
     }
-  }, [storageKey, pages.length]);
+  }, [initialPage, storageKey, pages.length]);
 
   useEffect(() => {
     const currentPage = pageIndex + 1;

@@ -6,6 +6,8 @@ const SESSION_DAYS = 30;
 export interface Session {
   userId: string;
   email: string;
+  sessionVersion: number;
+  mustChangePassword: boolean;
 }
 
 function getSecret(): Uint8Array {
@@ -19,7 +21,11 @@ function getSecret(): Uint8Array {
 }
 
 export async function signSession(session: Session): Promise<string> {
-  return new SignJWT({ email: session.email })
+  return new SignJWT({
+    email: session.email,
+    sv: session.sessionVersion,
+    mcp: session.mustChangePassword,
+  })
     .setProtectedHeader({ alg: "HS256" })
     .setSubject(session.userId)
     .setIssuedAt()
@@ -35,7 +41,13 @@ export async function verifySession(token: string): Promise<Session | null> {
       return null;
     }
 
-    return { userId: payload.sub, email: payload.email };
+    return {
+      userId: payload.sub,
+      email: payload.email,
+      sessionVersion: typeof payload.sv === "number" ? payload.sv : 0,
+      mustChangePassword:
+        typeof payload.mcp === "boolean" ? payload.mcp : false,
+    };
   } catch {
     return null;
   }

@@ -1,6 +1,11 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 
-import { getSession } from "@/lib/session-cookies";
+import {
+  BlobClaimError,
+  claimBlobPathname,
+  normalizeBlobPathname,
+} from "@/lib/blob-claims";
+import { requireActiveUser } from "@/lib/current-user";
 import { MAX_FILE_BYTES } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -10,8 +15,8 @@ const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
 const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
 
 export async function POST(request: Request) {
-  const session = await getSession();
-  if (!session) {
+  const user = await requireActiveUser();
+  if (!user) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -30,33 +35,54 @@ export async function POST(request: Request) {
     return Response.json({ error: "Invalid upload request." }, { status: 400 });
   }
 
-  const response = await handleUpload({
-    body,
-    request,
-    onBeforeGenerateToken: async (_pathname, clientPayload) => {
-      let kind = "pdf";
-      try {
-        kind = JSON.parse(clientPayload || "{}").kind ?? "pdf";
-      } catch {
-        kind = "pdf";
-      }
+  try {
+    const response = await handleUpload({
+      body,
+      request,
+      onBeforeGenerateToken: async (pathname, clientPayload) => {
+        let kind = "pdf";
+        try {
+          kind = JSON.parse(clientPayload || "{}").kind ?? "pdf";
+        } catch {
+          kind = "pdf";
+        }
 
-      if (kind === "story-image") {
+        const normalized = normalizeBlobPathname(pathname);
+        const prefix =
+          kind === "story-image"
+            ? "readvault/story-images/"
+            : "readvault/uploads/";
+
+        if (!normalized || !normalized.startsWith(prefix)) {
+          throw new BlobClaimError("Invalid upload path.");
+        }
+
+        await claimBlobPathname(user.id, normalized);
+
+        if (kind === "story-image") {
+          return {
+            allowedContentTypes: IMAGE_TYPES,
+            maximumSizeInBytes: MAX_IMAGE_BYTES,
+            addRandomSuffix: false,
+            allowOverwrite: false,
+          };
+        }
+
         return {
-          allowedContentTypes: IMAGE_TYPES,
-          maximumSizeInBytes: MAX_IMAGE_BYTES,
-          addRandomSuffix: true,
+          allowedContentTypes: ["application/pdf"],
+          maximumSizeInBytes: MAX_FILE_BYTES,
+          addRandomSuffix: false,
+          allowOverwrite: false,
         };
-      }
+      },
+      onUploadCompleted: async () => {},
+    });
 
-      return {
-        allowedContentTypes: ["application/pdf"],
-        maximumSizeInBytes: MAX_FILE_BYTES,
-        addRandomSuffix: true,
-      };
-    },
-    onUploadCompleted: async () => {},
-  });
-
-  return Response.json(response);
+    return Response.json(response);
+  } catch (error) {
+    if (error instanceof BlobClaimError) {
+      return Response.json({ error: error.message }, { status: 409 });
+    }
+    throw error;
+  }
 }

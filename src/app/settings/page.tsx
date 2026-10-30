@@ -1,5 +1,162 @@
 import Link from "next/link";
-import { ArrowLeft, Settings } from "lucide-react";
-export default function SettingsPage() {
-  return <main className="min-h-screen bg-paper p-8"><Link href="/" className="inline-flex items-center gap-2 text-sm text-brand no-underline"><ArrowLeft size={16}/> Back to library</Link><div className="mx-auto mt-16 max-w-xl rounded-3xl border border-line bg-white p-8"><Settings className="mb-3 text-brand" size={26}/><h1 className="m-0 text-2xl font-bold">Settings</h1><p className="mt-2 text-sm leading-6 text-muted">Account settings, cloud sync, and reading preferences will be added when we introduce authentication and Supabase.</p><div className="mt-6 rounded-xl bg-[#f4f6f1] p-4 text-sm text-[#536452]"><strong>Current mode:</strong> Local desktop library. Your books and PDFs are stored on this computer.</div></div></main>;
+import { redirect } from "next/navigation";
+import {
+  BookOpen,
+  Bot,
+  Database,
+  ShieldCheck,
+  SlidersHorizontal,
+  UserRound,
+  UsersRound,
+} from "lucide-react";
+
+import { MobileNav } from "@/components/mobile-nav";
+import { AccountSummary } from "@/components/settings/account-summary";
+import { AiSettingsForm } from "@/components/settings/ai-settings-form";
+import { DataForm } from "@/components/settings/data-form";
+import { FamilySection } from "@/components/settings/family-section";
+import { ReadingForm } from "@/components/settings/reading-form";
+import { SecurityForm } from "@/components/settings/security-form";
+import { SettingsSection } from "@/components/settings/settings-section";
+import { Sidebar } from "@/components/sidebar";
+import { listFamilyAccounts } from "@/lib/admin-accounts";
+import {
+  AiSettingsError,
+  getAiSettingsView,
+  type AiSettingsView,
+} from "@/lib/ai/settings";
+import { getCurrentUser } from "@/lib/current-user";
+import { getPreferences } from "@/lib/preferences";
+import { getSession } from "@/lib/session-cookies";
+
+export const dynamic = "force-dynamic";
+
+export const metadata = {
+  title: "Settings — ReadVault",
+};
+
+export default async function SettingsPage() {
+  const user = await getCurrentUser();
+
+  if (!user) {
+    const session = await getSession();
+    redirect(session ? "/login?expired=1" : "/login");
+  }
+
+  const preferences = await getPreferences(user.id);
+  const isActiveAdmin = user.isAdmin && !user.mustChangePassword;
+  const familyAccounts = isActiveAdmin
+    ? (await listFamilyAccounts()).map((account) => ({
+        id: account.id,
+        email: account.email,
+        createdAt: new Date(account.createdAt).toISOString(),
+        isAdmin: account.isAdmin,
+      }))
+    : [];
+
+  let aiSettings: AiSettingsView | null = null;
+
+  if (isActiveAdmin) {
+    try {
+      aiSettings = await getAiSettingsView();
+    } catch (error) {
+      console.error(
+        "[settings] AI settings unavailable:",
+        error instanceof AiSettingsError ? error.code : "unexpected"
+      );
+    }
+  }
+
+  return (
+    <div className="app-shell">
+      <Sidebar />
+
+      <main className="main-area">
+        <div className="mobile-topbar items-center justify-between border-b border-line bg-white px-4 py-3">
+          <Link
+            href="/"
+            className="flex items-center gap-2 font-bold text-ink no-underline"
+          >
+            <span className="brand-mark !h-8 !w-8 !rounded-lg">
+              <BookOpen size={17} />
+            </span>
+            ReadVault
+          </Link>
+        </div>
+
+        <div className="main-inner">
+          <div className="mx-auto max-w-3xl">
+            <header className="mb-8">
+              <p className="mb-2 text-xs font-bold uppercase tracking-[.16em] text-brand">
+                Your account
+              </p>
+              <h1 className="m-0 text-3xl font-bold tracking-tight text-ink">
+                Settings
+              </h1>
+              <p className="mb-0 mt-2 text-sm text-muted">
+                Manage your sign-in details, security, and reading
+                preferences.
+              </p>
+            </header>
+
+            <div className="flex flex-col gap-6">
+              <SettingsSection
+                title="Account"
+                description="The email address you use to sign in to ReadVault."
+                icon={<UserRound size={20} />}
+              >
+                <AccountSummary email={user.email} />
+              </SettingsSection>
+
+              <SettingsSection
+                title="Security"
+                description="Change your password or end every active session."
+                icon={<ShieldCheck size={20} />}
+              >
+                <SecurityForm mustChangePassword={user.mustChangePassword} />
+              </SettingsSection>
+
+              <SettingsSection
+                title="Reading"
+                description="Set how PDFs and Story Time pages open for you."
+                icon={<SlidersHorizontal size={20} />}
+              >
+                <ReadingForm initialPreferences={preferences} />
+              </SettingsSection>
+
+              <SettingsSection
+                title="Data"
+                description="Export a copy of your data or permanently remove it."
+                icon={<Database size={20} />}
+              >
+                <DataForm email={user.email} />
+              </SettingsSection>
+
+              {isActiveAdmin && (
+                <SettingsSection
+                  title="Family"
+                  description="Create accounts for your family and issue one-time reset links."
+                  icon={<UsersRound size={20} />}
+                >
+                  <FamilySection accounts={familyAccounts} />
+                </SettingsSection>
+              )}
+
+              {isActiveAdmin && (
+                <SettingsSection
+                  title="AI story drafts"
+                  description="Configure the AI provider used for story drafts. Only administrators can view or change these settings."
+                  icon={<Bot size={20} />}
+                >
+                  <AiSettingsForm initialSettings={aiSettings} />
+                </SettingsSection>
+              )}
+            </div>
+          </div>
+        </div>
+      </main>
+
+      <MobileNav />
+    </div>
+  );
 }

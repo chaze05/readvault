@@ -1,6 +1,8 @@
 import type { Metadata, Viewport } from "next";
 
+import { MotionPreferences } from "@/components/motion-preferences";
 import { PwaRegister } from "@/components/pwa-register";
+import { getMotionPreference } from "@/lib/session-cookies";
 import "./globals.css";
 
 export const metadata: Metadata = {
@@ -29,13 +31,17 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-export default function RootLayout({
+export default async function RootLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
+  const reduceMotion = await getMotionPreference();
+
   return (
     <html lang="en">
-      <body>
-        {children}
+      <body className={reduceMotion ? "reduce-motion" : undefined}>
+        <MotionPreferences reduceMotion={reduceMotion}>
+          {children}
+        </MotionPreferences>
         <PwaRegister />
       </body>
     </html>

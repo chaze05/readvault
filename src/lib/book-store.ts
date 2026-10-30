@@ -1,5 +1,9 @@
 import { del, head } from "@vercel/blob";
 
+import {
+  assertBlobPathnameClaimedByUser,
+  isBlobUrlClaimedByUser,
+} from "./blob-claims";
 import { DuplicateBookError } from "./book-errors";
 import { query } from "./db";
 import type { Book, BookStatus } from "./types";
@@ -96,6 +100,8 @@ export async function createBook(
     throw new Error("The uploaded file is not a PDF.");
   }
 
+  await assertBlobPathnameClaimedByUser(userId, blob.pathname);
+
   try {
     const { rows } = await query<BookRow>(
       `insert into public.books
@@ -160,11 +166,13 @@ export async function deleteBook(
 
   if (!rows[0]) return false;
 
+  const ownsBlob = await isBlobUrlClaimedByUser(userId, rows[0].file_path);
+
   await query("delete from public.books where id = $1 and user_id = $2", [
     id,
     userId,
   ]);
-  await del(rows[0].file_path).catch(() => {});
+  if (ownsBlob) await del(rows[0].file_path).catch(() => {});
 
   return true;
 }

@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { deleteBook, updateBook } from "@/lib/book-store";
-import { getSession } from "@/lib/session-cookies";
+import { requireActiveUser } from "@/lib/current-user";
 import { isUuid } from "@/lib/uuid";
 import { parseBookUpdate } from "@/lib/validation";
 
@@ -12,8 +12,8 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session) {
+  const user = await requireActiveUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -29,7 +29,7 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const book = await updateBook(session.userId, id, parsed.data);
+  const book = await updateBook(user.id, id, parsed.data);
   if (!book) {
     return NextResponse.json({ error: "Book not found." }, { status: 404 });
   }
@@ -41,8 +41,8 @@ export async function DELETE(
   _request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session) {
+  const user = await requireActiveUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -51,7 +51,7 @@ export async function DELETE(
     return NextResponse.json({ error: "Invalid book id." }, { status: 400 });
   }
 
-  const deleted = await deleteBook(session.userId, id);
+  const deleted = await deleteBook(user.id, id);
   if (!deleted) {
     return NextResponse.json({ error: "Book not found." }, { status: 404 });
   }

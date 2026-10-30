@@ -495,7 +495,8 @@ export function StoryEditor({ storyId }: { storyId?: string }) {
           </div>
           <p className="mb-3 text-xs leading-5 text-muted">
             Optional. Describe the story you want and the app will draft original
-            pages for you to edit. Requires AI_API_KEY in the environment.
+            pages for you to edit. Available when an administrator has configured
+            a provider key.
           </p>
           <textarea
             value={idea}

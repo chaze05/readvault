@@ -1,7 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { getBookFile } from "@/lib/book-store";
-import { getSession } from "@/lib/session-cookies";
+import { requireActiveUser } from "@/lib/current-user";
+import { AUTHENTICATED_CACHE_HEADERS } from "@/lib/http";
 import { isUuid } from "@/lib/uuid";
 
 export const runtime = "nodejs";
@@ -11,8 +12,8 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session) {
+  const user = await requireActiveUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -21,7 +22,7 @@ export async function GET(
     return NextResponse.json({ error: "Invalid book id." }, { status: 400 });
   }
 
-  const file = await getBookFile(session.userId, id);
+  const file = await getBookFile(user.id, id);
   if (!file) {
     return NextResponse.json(
       { error: "No PDF file is attached to this book." },
@@ -29,5 +30,7 @@ export async function GET(
     );
   }
 
-  return NextResponse.redirect(file.fileUrl);
+  return NextResponse.redirect(file.fileUrl, {
+    headers: AUTHENTICATED_CACHE_HEADERS,
+  });
 }

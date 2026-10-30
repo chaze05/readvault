@@ -98,6 +98,9 @@ button { cursor: pointer; }
   .reader-curtain, .reader-curtain.leaving, .reader-page-enter,
   .curtain-book, .curtain-sparkles span { animation: none !important; transition: none !important; }
 }
+.reduce-motion .reader-curtain, .reduce-motion .reader-curtain.leaving,
+.reduce-motion .reader-page-enter, .reduce-motion .curtain-book,
+.reduce-motion .curtain-sparkles span { animation: none !important; transition: none !important; }
 
 @media (max-width: 900px) {
   .sidebar { width: 76px; padding: 22px 12px; align-items: center; }
@@ -142,6 +145,14 @@ button { cursor: pointer; }
 .story-curtain .curtain-book { background: #7954a5; }
 .story-curtain .curtain-kicker { color: #8b65bd; }
 .story-curtain .curtain-title { color: #3a2749; }
+.story-text-small .story-page-text { font-size: 1rem; line-height: 1.9; }
+.story-text-medium .story-page-text { font-size: 1.125rem; line-height: 2; }
+.story-text-large .story-page-text { font-size: 1.375rem; line-height: 2.05; }
+@media (min-width: 640px) {
+  .story-text-small .story-page-text { font-size: 1.125rem; }
+  .story-text-medium .story-page-text { font-size: 1.25rem; }
+  .story-text-large .story-page-text { font-size: 1.625rem; }
+}
 @media print {
   @page { size: A4; margin: 18mm; }
   body { background: white !important; }

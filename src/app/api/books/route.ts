@@ -1,26 +1,33 @@
 import { NextRequest, NextResponse } from "next/server";
 import { del } from "@vercel/blob";
 
+import {
+  BlobClaimError,
+  isBlobUrlClaimedByUser,
+} from "@/lib/blob-claims";
 import { DuplicateBookError } from "@/lib/book-errors";
 import { createBook, listBooks } from "@/lib/book-store";
-import { getSession } from "@/lib/session-cookies";
+import { requireActiveUser } from "@/lib/current-user";
+import { AUTHENTICATED_CACHE_HEADERS } from "@/lib/http";
 import { parseCloudBookInput } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET() {
-  const session = await getSession();
-  if (!session) {
+  const user = await requireActiveUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  return NextResponse.json(await listBooks(session.userId));
+  return NextResponse.json(await listBooks(user.id), {
+    headers: AUTHENTICATED_CACHE_HEADERS,
+  });
 }
 
 export async function POST(request: NextRequest) {
-  const session = await getSession();
-  if (!session) {
+  const user = await requireActiveUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -32,15 +39,21 @@ export async function POST(request: NextRequest) {
   }
 
   try {
-    const book = await createBook(session.userId, parsed.data);
+    const book = await createBook(user.id, parsed.data);
     return NextResponse.json(book, { status: 201 });
   } catch (error) {
     if (error instanceof DuplicateBookError) {
-      await del(parsed.data.fileUrl).catch(() => {});
+      if (await isBlobUrlClaimedByUser(user.id, parsed.data.fileUrl)) {
+        await del(parsed.data.fileUrl).catch(() => {});
+      }
       return NextResponse.json(
         { error: error.message, bookId: error.existingId },
         { status: 409 }
       );
+    }
+
+    if (error instanceof BlobClaimError) {
+      return NextResponse.json({ error: error.message }, { status: 403 });
     }
 
     console.error(

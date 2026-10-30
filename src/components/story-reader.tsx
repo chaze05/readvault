@@ -14,14 +14,23 @@ import {
   Volume2,
 } from "lucide-react";
 
+import type { StoryTextSize } from "@/lib/preferences";
 import type { Story } from "@/lib/types";
+
+const TEXT_SIZE_CLASS: Record<StoryTextSize, string> = {
+  small: "story-text-small",
+  medium: "story-text-medium",
+  large: "story-text-large",
+};
 
 export function StoryReader({
   storyId,
   initialStory,
+  textSize,
 }: {
   storyId: string;
   initialStory: Story;
+  textSize: StoryTextSize;
 }) {
   const [story] = useState(initialStory);
   const [pageIndex, setPageIndex] = useState(() =>
@@ -177,7 +186,7 @@ export function StoryReader({
 
           <article
             key={page.id}
-            className="reader-page-enter w-full max-w-2xl overflow-hidden rounded-[26px] border border-[#e9e2ef] bg-white shadow-[0_18px_55px_rgba(55,38,72,.08)]"
+            className={`reader-page-enter w-full max-w-2xl overflow-hidden rounded-[26px] border border-[#e9e2ef] bg-white shadow-[0_18px_55px_rgba(55,38,72,.08)] ${TEXT_SIZE_CLASS[textSize]}`}
           >
             {page.imageUrl ? (
               <div className="flex max-h-[48vh] justify-center bg-[#f4eff8]">
@@ -199,7 +208,7 @@ export function StoryReader({
               <p className="mb-5 text-center text-[10px] font-bold uppercase tracking-[.2em] text-[#a18bb7]">
                 Page {pageIndex + 1}
               </p>
-              <p className="m-0 whitespace-pre-wrap text-center font-serif text-lg leading-[2] text-[#393341] sm:text-xl">
+              <p className="story-page-text m-0 whitespace-pre-wrap text-center font-serif text-[#393341]">
                 {page.content}
               </p>
             </div>

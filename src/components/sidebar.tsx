@@ -15,6 +15,7 @@ import {
 } from "lucide-react";
 
 import { signOut } from "@/actions/auth";
+import { clearClientSessionData } from "@/lib/client-session-cleanup";
 
 const navItems = [
   { label: "Overview", href: "/dashboard", icon: LayoutDashboard, exact: true },
@@ -32,6 +33,7 @@ export function Sidebar({ onClose }: { onClose?: () => void }) {
   async function handleSignOut() {
     setSigningOut(true);
     try {
+      await clearClientSessionData();
       await signOut();
       router.push("/login");
       router.refresh();

@@ -14,7 +14,7 @@ import {
   WifiOff,
 } from "lucide-react";
 
-const PDF_CACHE = "readvault-pdfs";
+const PDF_CACHE = "readvault-pdfs-v2";
 
 type OfflineState = "checking" | "ready" | "online";
 
@@ -23,18 +23,20 @@ export function PdfReader({
   fileUrl,
   initialPage,
   initialTotalPages,
+  initialZoom,
   title,
 }: {
   bookId: string;
   fileUrl?: string;
   initialPage: number;
   initialTotalPages: number;
+  initialZoom: number;
   title: string;
 }) {
   const [pdf, setPdf] = useState<PDFDocumentProxy | null>(null);
   const [pageNumber, setPageNumber] = useState(Math.max(1, initialPage));
   const [totalPages, setTotalPages] = useState(initialTotalPages);
-  const [zoom, setZoom] = useState(1);
+  const [zoom, setZoom] = useState(initialZoom);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
   const [saving, setSaving] = useState(false);

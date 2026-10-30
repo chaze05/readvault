@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { saveStoryProgress } from "@/lib/story-store";
-import { getSession } from "@/lib/session-cookies";
+import { requireActiveUser } from "@/lib/current-user";
 import { isUuid } from "@/lib/uuid";
 
 export const runtime = "nodejs";
@@ -11,8 +11,8 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const session = await getSession();
-  if (!session) {
+  const user = await requireActiveUser();
+  if (!user) {
     return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
   }
 
@@ -28,7 +28,7 @@ export async function PATCH(
     return NextResponse.json({ error: "Invalid page." }, { status: 400 });
   }
 
-  const result = await saveStoryProgress(session.userId, id, currentPage);
+  const result = await saveStoryProgress(user.id, id, currentPage);
   if (!result) {
     return NextResponse.json({ error: "Story not found." }, { status: 404 });
   }

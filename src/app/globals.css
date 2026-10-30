@@ -48,6 +48,7 @@ button { cursor: pointer; }
 .progress-track { height: 6px; border-radius: 99px; background: #edf0e9; overflow: hidden; }
 .progress-fill { height: 100%; border-radius: 99px; background: #64866b; }
 .mobile-topbar { display: none; }
+.mobile-bottom-nav { display: none; }
 
 @media (max-width: 900px) {
   .sidebar { width: 76px; padding: 22px 12px; align-items: center; }
@@ -60,7 +61,20 @@ button { cursor: pointer; }
 @media (max-width: 600px) {
   .sidebar { display: none; }
   .main-area { margin-left: 0; }
-  .main-inner { padding: 18px 16px 40px; }
+  .main-inner { padding: 18px 16px 100px; }
   .mobile-topbar { display: flex; }
   .cover { min-height: 165px; }
+  .mobile-bottom-nav {
+    display: flex; position: fixed; inset: auto 0 0 0; z-index: 30;
+    justify-content: space-around; gap: 2px;
+    padding: 8px 6px calc(8px + env(safe-area-inset-bottom));
+    background: rgba(255,255,255,.98); border-top: 1px solid #e8ebe4;
+    box-shadow: 0 -8px 24px rgba(31,47,34,.06);
+  }
+  .mobile-bottom-link {
+    display: flex; flex-direction: column; align-items: center; gap: 3px;
+    min-width: 52px; padding: 5px 6px; border-radius: 10px;
+    color: #7b8378; font-size: 9px; font-weight: 700; text-decoration: none;
+  }
+  .mobile-bottom-link.active { color: #315b45; background: #eaf1eb; }
 }

@@ -1,2 +1,5 @@
 import { LibraryApp } from "@/components/library-app";
-export default function RecentPage() { return <LibraryApp mode="library"/>; }
+
+export default function RecentPage() {
+  return <LibraryApp mode="recent" />;
+}

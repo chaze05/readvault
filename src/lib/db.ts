@@ -32,22 +32,6 @@ function createDatabase() {
     );
   `);
 
-  const count = database.prepare("SELECT COUNT(*) as count FROM books").get() as { count: number };
-  if (count.count === 0) {
-    const seed = database.prepare(`
-      INSERT INTO books (title, author, category, description, total_pages, current_page, status, cover_color)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `);
-    const samples = [
-      ["The Art of War", "Sun Tzu", "Strategy", "The classic treatise on strategy and leadership.", 120, 18, "reading", "#344d43"],
-      ["Think Python", "Allen B. Downey", "Programming", "A practical introduction to software development using Python.", 292, 0, "not_started", "#3f6681"],
-      ["Think Stats", "Allen B. Downey", "Data Science", "Probability and statistics for programmers.", 220, 0, "not_started", "#8b6347"],
-      ["Mathematics for Computer Science", "Eric Lehman, F. Thomson Leighton & Albert R. Meyer", "Mathematics", "Discrete mathematics foundations for computer science.", 600, 0, "not_started", "#655b83"],
-      ["Dive into Deep Learning", "Aston Zhang et al.", "Artificial Intelligence", "An interactive book on deep learning.", 700, 0, "not_started", "#47736e"]
-    ] as const;
-    for (const item of samples) seed.run(...item);
-  }
-
   return database;
 }
 

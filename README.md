@@ -1,123 +1,136 @@
 # ReadVault
 
-A local-first personal PDF library built with Next.js, TypeScript, SQLite, local file storage, and PDF.js. Upload books, organize them, read them in the app, and keep reading when you are offline.
+**Live:** https://readvault-ten.vercel.app  
+**Source:** https://github.com/chaze05/readvault
+
+A private, multi-user PDF library and family Story Time app. Sign in, upload and edit your books, read them in a PDF.js reader with saved progress and offline caching, and write illustrated storybooks with optional read-aloud and AI drafting.
 
 ## Features
 
-- Upload, edit, and delete PDF books
-- Search, filter by category, and sort by recent activity, title, or author
-- Duplicate detection by SHA-256 file hash
-- Embedded PDF.js reader with page navigation, zoom, fit width, fullscreen, and keyboard arrows
-- Automatic reading-progress saving and resume
-- Recently Read view
-- Installable PWA with an offline app shell and cached PDFs
-- Responsive desktop layout and mobile bottom navigation
+- Email/password accounts with private per-user libraries.
+- Public home page, sign in / sign up, and protected app routes.
+- PDF CRUD: upload, list, search, filter, sort, edit metadata, delete.
+- Duplicate detection by SHA-256 hash per account.
+- PDF.js reader: page navigation, zoom, fit width, fullscreen, keyboard arrows, automatic progress, resume.
+- Story Time: original or movie-inspired stories, multi-page editor, page reorder/delete, cover and page illustrations, read-aloud, print/save PDF.
+- Optional AI story drafting through any OpenAI-compatible API (DeepSeek by default); parent review before saving.
+- PWA: installable app shell and offline reading for PDFs and opened stories.
+- Warm storybook opening curtain and page-turn transitions, with reduced-motion support.
 
-## Requirements
+## Stack
 
-- Node.js 22.13 or newer (required by the current PDF.js release)
-- npm
+- Next.js 15 App Router, TypeScript, Tailwind CSS
+- PostgreSQL (Neon in production, Docker locally) with `pg`
+- Vercel Blob for PDFs and story images
+- Custom email/password auth: bcrypt hashing + signed HttpOnly JWT cookies (`jose`)
+- PDF.js (`pdfjs-dist`)
+- Optional OpenAI-compatible AI endpoint (DeepSeek/OpenAI)
+- Vitest
+- Vercel + Neon + Blob free tiers
 
-## Run locally
+## Local setup
 
-```bash
-npm install
-npm run dev
-```
+Requirements: Node.js 22.13+, a Postgres database, and a Vercel Blob token.
 
-Open http://localhost:3000.
+1. Install dependencies:
 
-`npm install` also copies the PDF.js worker into `public/`. The SQLite database is created automatically at `data/readvault.db`; uploaded PDFs go to `data/uploads/`.
-
-## Tests and checks
-
-```bash
-npm test
-npm run lint
-npm run build
-```
-
-## PWA and offline reading
-
-The service worker registers in production builds only. To test offline behavior on the same machine:
-
-```bash
-npm run build
-npm run start
-```
-
-Then open a book once while online. The reader shows **Offline ready** after the PDF and reader shell are cached. Turn off Wi-Fi or use browser offline mode, reload, and the book should still open.
-
-### Install on iPhone
-
-Service workers require **HTTPS**. `http://localhost` is a secure context only on the computer itself; a phone visiting `http://192.168.x.x:3000` will not register the service worker.
-
-1. Run the production build (`npm run build && npm run start`).
-2. Expose it over HTTPS, for example with a tunnel:
    ```bash
-   cloudflared tunnel --url http://localhost:3000
+   npm.cmd install
    ```
-   or any HTTPS tunnel/deployment URL.
-3. On the iPhone, open the HTTPS URL in Safari.
-4. Tap **Share → Add to Home Screen**.
-5. Open ReadVault from the Home Screen, open a book once while online, wait for **Offline ready**, then test in Airplane Mode.
 
-Offline caveats:
+2. Create `.env.local` from `.env.example` and fill in:
 
-- iOS may evict cached files under storage pressure. ReadVault requests persistent storage, but iOS can still clear it.
-- Cached books are readable offline; uploads and metadata changes need a connection.
-- The tunnel/PC must be running for online use. Data stays on the computer running the app.
-- A tunnel URL is tied to the PWA origin. If the URL changes, reinstall the PWA.
-- For a permanent multi-device app, migrate metadata and PDFs to Supabase (the future phase in the plan).
+   | Variable | Purpose |
+   | --- | --- |
+   | `DATABASE_URL` | Postgres connection used by the app (Neon or local) |
+   | `ADMIN_DATABASE_URL` | Migration connection (same URL for local) |
+   | `AUTH_SECRET` | 32+ random characters for session JWTs |
+   | `BLOB_READ_WRITE_TOKEN` | Vercel Blob read/write token |
+   | `GEMINI_MODEL` | Not used by this build |
+   | `AI_API_KEY` | Optional: DeepSeek/OpenAI-compatible key for story drafts |
+   | `AI_BASE_URL` | Optional: `https://api.deepseek.com` or `https://api.openai.com/v1` |
+   | `AI_MODEL` | Optional: `deepseek-chat` or `gpt-4o-mini` |
 
-## Project structure
+   The current `.env.local` can point at Neon and Blob, or use the optional local Docker database on port 5434.
 
-- `src/app`: routes, API handlers, reader, offline page
-- `src/components`: library, dialogs, reader, mobile navigation, PWA registration
-- `src/lib`: SQLite, validation, hashing, storage helpers
-- `public`: manifest, service worker, icons, generated PDF.js worker
-- `data`: local database and uploads (git-ignored)
-- `docs`: project plan and supporting documentation
+3. Apply the schema:
 
-## Documentation
+   ```bash
+   npm.cmd run db:migrate
+   ```
 
-- [PROJECT_PLAN.md](PROJECT_PLAN.md) — scope, phases, acceptance criteria
-- [ARCHITECTURE.md](ARCHITECTURE.md) — layers, schema, storage, offline design
-- [AGENTS.md](AGENTS.md) — coding conventions and verification workflow
-- [docs/PWA_iPhone.md](docs/PWA_iPhone.md) — iPhone install/offline checklist
-- [CHANGELOG.md](CHANGELOG.md) — milestones
-- `docs/ReadVault_Project_Plan.pdf` — original plan
-- `docs/ReadVault_Story_Time_Feature_Specification.pdf` — planned Story Time feature (not implemented yet)
+   Local Docker alternative:
 
-## Deploy to Vercel with Blob storage
+   ```bash
+   npm.cmd run db:up
+   ```
 
-The live deployment uses **Vercel Blob** for PDFs and a small public `books.json` index, because Vercel Functions have a small request body limit and no persistent local disk. Uploads go from the browser directly to Blob; the server only writes metadata.
+4. Start the app:
 
-Environment variables for the live project:
+   ```bash
+   npm.cmd run dev
+   ```
 
-| Variable | Value |
+5. Open http://localhost:3000, create an account, and upload a PDF.
+
+> The app uses Vercel Blob for all PDF/image storage, including local development. A Blob token is required even when the database is local.
+
+## Scripts
+
+| Command | Purpose |
 | --- | --- |
-| `BLOB_READ_WRITE_TOKEN` | Added by connecting a Vercel Blob store |
-| `STORAGE_DRIVER` | `blob` |
-| `NEXT_PUBLIC_STORAGE_DRIVER` | `blob` |
-| `AUTH_SECRET` | Not needed yet (no accounts) |
-| `GEMINI_API_KEY` | Not needed yet (Story Time AI is future work) |
+| `npm.cmd run dev` | Start development |
+| `npm.cmd run build` | Production build + type check |
+| `npm.cmd test` | Vitest |
+| `npm.cmd run lint` | ESLint |
+| `npm.cmd run db:migrate` | Apply pending migrations |
+| `npm.cmd run db:migrate:prod` | Apply migrations using process env (Vercel/Neon) |
+| `npm.cmd run db:up` / `db:down` | Optional local Postgres on port 5434 |
 
-Local development stays on SQLite when the storage driver variables are blank.
+## Auth and data isolation
 
-**Privacy note:** the current live demo uses public Blob URLs and a public metadata index so it can run without authentication. Do not upload sensitive documents. Private storage, signed URLs, and per-user auth belong to the cloud-auth phase.
+- Users sign up with email/password; passwords are bcrypt-hashed.
+- Sessions are 30-day HS256 JWTs in an HttpOnly, SameSite=Lax cookie, Secure in production.
+- `src/middleware.ts` protects `/dashboard`, `/library`, `/recent`, `/bookmarks`, `/settings`, `/reader`, and `/story-time`.
+- Every database query and server action scopes rows by the signed-in user id.
+- v1 has no email verification or password reset yet. Add those before opening public signups.
 
-### Deploy steps
+## Vercel deployment
+
+Production env vars:
+
+- `DATABASE_URL` — Neon pooled connection string
+- `AUTH_SECRET` — 32+ random characters
+- `BLOB_READ_WRITE_TOKEN` — from the connected Blob store
+- `AI_API_KEY` — optional, enables the Story Time AI draft button
+
+The Neon schema was applied with `npm run db:migrate:prod`. Deploy with `vercel --prod` or push to the connected GitHub repository.
+
+## PWA and offline
+
+- The service worker registers in production.
+- Install from Safari on iPhone: open the HTTPS URL, Share → Add to Home Screen.
+- Open a PDF or story once while online; it is cached for offline reading.
+- iOS may evict caches under storage pressure; uploads/edits need a connection. See `docs/PWA_iPhone.md`.
+
+## Privacy
+
+The current Blob files are public-but-unguessable URLs, and the app is a personal demo. Do not upload sensitive documents yet. Private Blob access, signed URLs, and tighter retention belong to the next hardening pass.
+
+## Verification
 
 ```bash
-vercel link
-vercel storage create readvault-blobs --type blob --access public
-vercel storage connect readvault-blobs --auth token --add-rw-token
-vercel env add STORAGE_DRIVER production --value blob --yes
-vercel env add NEXT_PUBLIC_STORAGE_DRIVER production --value blob --yes
-vercel --prod
+npm.cmd test
+npm.cmd run lint
+npm.cmd run build
 ```
 
-## Deployment note
+The full local/live smoke covers signup, PDF upload/read/edit/delete, Story Time create/edit/cover/page images/read, and sign-out protection.
 
-This starter is local-first. SQLite and local uploads do not persist on Vercel. Before a public or multi-device deployment, migrate the database and PDFs to managed persistent services, add authentication, and verify private storage access. See the future phases in `PROJECT_PLAN.md`.
+## Docs
+
+- [PROJECT_PLAN.md](PROJECT_PLAN.md) — scope, phases, current status
+- [ARCHITECTURE.md](ARCHITECTURE.md) — data model, auth, storage, Story Time
+- [AGENTS.md](AGENTS.md) — coding conventions
+- [docs/PWA_iPhone.md](docs/PWA_iPhone.md) — install/offline checklist
+- [CHANGELOG.md](CHANGELOG.md) — milestones

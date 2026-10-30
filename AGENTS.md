@@ -1,61 +1,53 @@
 # ReadVault Agent Guide
 
-ReadVault is a local-first personal PDF library. Keep the MVP single-user, local, and free to run: SQLite metadata plus PDFs on the local filesystem. Supabase, authentication, and cloud sync belong to the later cloud-migration phase.
+ReadVault is a multi-user PDF library and family Story Time app. Accounts, metadata, PDFs, story images, and reading progress are private per user. Production runs Next.js on Vercel, Postgres on Neon, and files on Vercel Blob.
 
 ## Commands
 
-- `npm.cmd install` — install dependencies (PowerShell blocks `npm.ps1` on this machine)
-- `npm.cmd run dev` — start the dev server at http://localhost:3000
+- `npm.cmd install` — install dependencies (also copies the PDF.js worker)
+- `npm.cmd run dev` — start the dev server
+- `npm.cmd test` — Vitest
 - `npm.cmd run lint` — ESLint 9 flat config
 - `npm.cmd run build` — production build and type check
-- `npm.cmd test` — Vitest unit tests
-- `npm.cmd run start` — production server
+- `npm.cmd run db:migrate` — apply pending migrations from `.env.local`
+- `npm.cmd run db:migrate:prod` — apply migrations using process env
+- `npm.cmd run db:up` / `db:down` — optional local Postgres on port 5434
 
-## Stack
+## Stack rules
 
-- Next.js 15 App Router, React 19, TypeScript
-- Tailwind CSS 3 with semantic tokens in `tailwind.config.ts` (`ink`, `muted`, `paper`, `line`, `brand`, `brand-soft`)
-- `better-sqlite3` for SQLite
-- Local files in `data/uploads`; SQLite database at `data/readvault.db`
-- `lucide-react` icons
+- Next.js 15 App Router. Middleware is `src/middleware.ts` (not the Next 16 `proxy.ts` convention).
+- Postgres via `pg` (`src/lib/db.ts`). No SQLite. Use parameterized `$1` queries.
+- Auth: bcrypt passwords + `jose` JWTs. Session token code in `src/lib/session.ts` (edge-safe); cookie helpers in `src/lib/session-cookies.ts`.
+- Files: Vercel Blob only. Client uploads use `@vercel/blob/client`; server metadata is stored in Postgres.
+- PDF reader: `pdfjs-dist` dynamically imported in `src/components/pdf-reader.tsx`; worker copied by `scripts/copy-pdf-worker.mjs`.
+- PWA: `public/sw.js` registers in production only. Test with `npm run build && npm run start`, not `next dev`.
+- AI: `src/app/api/ai/story/route.ts` uses an optional OpenAI-compatible endpoint. `AI_API_KEY` is server-only. Never expose it client-side.
 
-## Architecture Rules
+## Security and data rules
 
-- Keep presentation, application/data access, and storage separate. Components must not construct file paths or run SQL.
-- Database access goes through `src/lib/db.ts`. Use `getDb()` lazily; never open SQLite at module scope or during build. Build workers opening the database concurrently cause `SQLITE_BUSY`.
-- API routes are the application boundary for uploads, progress, file serving, and deletion.
-- Validate all uploads server-side: PDF extension/MIME, `%PDF-` signature, 50 MB limit, safe generated filenames, and no path traversal.
-- Deduplicate uploads with the SHA-256 `file_hash` column and return `409` for existing files.
-- Use parameterized SQL. Never trust `id`, filenames, or form values.
-- Keep `better-sqlite3` in `serverExternalPackages` in `next.config.ts`.
-- PDF.js is dynamically imported in `src/components/pdf-reader.tsx`. The worker is copied to `public/pdf.worker.min.mjs` by the `postinstall` script; do not lint that generated file.
-- PDFs opened online are cached in the `readvault-pdfs` Cache API cache for offline reading. Keep the cache name in sync with the reader.
-- The service worker (`public/sw.js`) registers in production only. Test PWA changes with `npm.cmd run build && npm.cmd run start`, not `next dev`.
-- Service workers require HTTPS. Use the tunnel instructions in `docs/PWA_iPhone.md` for iPhone testing.
-- Route handlers that touch the database use `export const runtime = "nodejs"` and `export const dynamic = "force-dynamic"`.
-- Next 15 route handlers receive `params` as a Promise; await it.
-- Do not add Supabase, authentication, cloud storage, or multi-user code before the cloud-migration phase.
-- Avoid new dependencies without a clear reason. Use the existing stack first.
+- Every API route and server action must call `getSession()` and scope every query by `session.userId`.
+- Never accept a user id from the client.
+- Story/book images and PDFs are Blob URLs; validate ownership before attaching/deleting.
+- Middleware is an optimistic redirect only; server routes still re-check auth.
+- Keep `AUTH_SECRET` and `BLOB_READ_WRITE_TOKEN` out of git.
+- v1 has no email verification or password reset; do not market it as a fully hardened public signup until those exist.
+- Blob URLs are currently public-but-unguessable. Do not treat them as private storage; add private Blobs/signed URLs before sensitive use.
 
-## Data Safety
+## Story Time rules
 
-- `data/*.db*` and `data/uploads/*` are git-ignored. Never commit user books.
-- Deleting a book must remove both the database row and its file; handle partial failures.
-- Do not run destructive database commands without explaining them first.
-- Back up `data/readvault.db` and `data/uploads` before risky migrations.
+- Original or movie-inspired only; never reproduce copyrighted scripts, dialogue, characters, or official artwork.
+- AI drafts are reviewed and edited by the parent before saving; no auto-publish.
+- AI should return 4–8 short pages; no generated images (users upload their own).
+- Story reader uses the shared storybook curtain/page-turn classes and browser SpeechSynthesis with graceful fallback.
 
 ## Verification
 
-Before calling a milestone complete:
+Before a milestone is done:
 
 1. `npm.cmd test`
 2. `npm.cmd run lint`
 3. `npm.cmd run build`
-4. Smoke test upload → open → progress save → reopen → delete when the change touches those flows.
-5. For PWA/offline changes, run the production server, open a book once, then reload it with the browser offline.
+4. Smoke-test signup → PDF upload/read/edit/delete → Story Time create/edit/images/read/delete → sign-out protection.
+5. For PWA changes, test the production server and reload a cached book offline.
 
-Pure logic belongs in `src/lib` with Vitest tests. Do not add a test runner or dependency without a reason.
-
-## Git
-
-Commit small, stable milestones. Do not commit secrets or local data. Keep the starter baseline and each phase reviewable.
+Commit small milestones. Do not commit `.env.local`, `.neon`, Blob tokens, or user data.

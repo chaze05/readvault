@@ -20,4 +20,10 @@
 - Added the PWA manifest, icons, service worker, offline page, and production registration.
 - Added iPhone PWA/offline setup documentation.
 - Received the Story Time feature specification; implementation has not started.
+- Added email/password accounts, JWT sessions, login, logout, and protected routes.
+- Migrated local SQLite/local Blob metadata to PostgreSQL (Neon) with per-user book CRUD.
+- Added Vercel Blob direct client uploads for PDFs and story images.
+- Ported Story Time from the Codex ZIP: story shelf, original/movie-inspired editor, page reorder/delete, cover/page images, read-aloud, print/save PDF, progress, storybook curtain/page-turn.
+- Added optional OpenAI-compatible AI story drafting (DeepSeek/OpenAI via env).
+- Validated signup, PDF CRUD, Story Time CRUD/images/reader, and sign-out protection locally and on Vercel.
 

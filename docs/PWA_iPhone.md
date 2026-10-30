@@ -1,45 +1,36 @@
 # ReadVault on iPhone — PWA & Offline Checklist
 
-## Why HTTPS is required
+## Install from the live app
 
-Service workers and the Cache API require a secure context. `localhost` counts on the computer, but not when the iPhone visits your PC over a LAN IP (`http://192.168.x.x`). Use an HTTPS tunnel or a deployed HTTPS URL.
+1. Open **https://readvault-ten.vercel.app** in **Safari** on the iPhone.
+2. Sign in or create an account.
+3. Tap **Share → Add to Home Screen**.
+4. Open ReadVault from the Home Screen.
+5. Open a PDF or story once while online. The PDF reader shows **Offline ready** after the file is cached.
+6. Turn on Airplane Mode and reopen the book/story to test offline reading.
 
-## Quick test
+## Local testing (optional)
 
-1. On the PC:
-   ```bash
-   npm run build
-   npm run start
-   ```
-2. In another terminal, expose port 3000 over HTTPS:
-   ```bash
-   cloudflared tunnel --url http://localhost:3000
-   ```
-   Copy the `https://...` URL.
-3. On the iPhone, open that URL in **Safari**.
-4. Tap **Share → Add to Home Screen**.
-5. Open ReadVault from the Home Screen.
-6. Upload a PDF and open it once. Wait for the reader to show **Offline ready**.
-7. Turn on Airplane Mode, reopen ReadVault, and open the same book. It should render from the cache.
+If you want to test the local dev server on a phone, it must be served over HTTPS (for example with `cloudflared tunnel --url http://localhost:3000`). A `http://192.168.x.x` LAN URL will not register a service worker.
 
 ## What is cached
 
-- App shell pages (`/`, `/library`, `/recent`, `/offline`)
+- App shell pages (`/`, `/login`, `/library`, `/recent`, `/offline`)
 - Static JS/CSS chunks as they are visited
 - The PDF.js worker
 - The `/api/books` library response
-- Each PDF you open (`readvault-pdfs` cache)
+- Each PDF opened in the reader (`readvault-pdfs` cache)
+- Story pages/scripts and images depend on the app shell and normal browser cache; story offline caching is a future hardening pass.
 
 ## Known iOS limitations
 
 - iOS may evict cache storage under pressure. ReadVault requests persisted storage but cannot guarantee it.
-- Offline mode is read-only: uploads, edits, and deletes need a connection.
+- Offline mode is read-only: sign-up, uploads, edits, AI drafts, and deletes need a connection.
 - No background sync or push notifications yet.
-- The PWA is tied to the HTTPS origin. A changing tunnel URL means reinstalling.
-- Only PDFs opened while online are cached. New books are not downloaded automatically.
-- Very large PDFs consume significant storage; keep an eye on iPhone storage.
-- PDF.js is tested in Chromium locally; test the actual iPhone build on your device before relying on it.
+- Only books opened while online are cached.
+- Very large PDFs consume significant storage.
+- The live app uses public-but-unguessable Blob URLs; do not upload sensitive documents yet.
 
-## Later
+## Future
 
-Cloud migration (Supabase Postgres + Storage + Auth) removes the PC/tunnel dependency and enables true multi-device sync and background updates.
+Private Blob storage/signed URLs, story offline caching, email verification/password reset, and RLS defense-in-depth.

@@ -2,82 +2,91 @@
 
 ## Layers
 
-- **Presentation:** `src/app` pages/layouts and `src/components` UI.
-- **Application:** API route handlers for books, uploads, file serving, progress, and deletion.
-- **Data access:** `src/lib/db.ts` owns the SQLite connection, schema, and row mapping.
-- **Storage:** `data/uploads` holds PDFs under generated filenames; the database stores the absolute path.
+- **Presentation:** `src/app` routes and `src/components` UI.
+- **Application:** API route handlers for auth-adjacent data, books, stories, images, progress, and AI drafts.
+- **Data access:** `src/lib/book-store.ts`, `src/lib/story-store.ts`, `src/lib/users.ts`, `src/lib/db.ts`.
+- **Storage:** Vercel Blob for PDFs and story images; URLs stored in Postgres.
+- **Auth:** custom email/password with bcrypt + signed JWT cookies.
 
-Components call typed HTTP endpoints; they do not run SQL or construct storage paths.
+Components call typed HTTP endpoints. Server pages read through the stores with the session user id.
 
 ## Routes
 
-| Route | Purpose |
-| --- | --- |
-| `/` | Overview dashboard |
-| `/library` | Full library |
-| `/recent` | Books with saved reading progress |
-| `/bookmarks` | Placeholder for page bookmarks |
-| `/settings` | Placeholder for future preferences/cloud settings |
-| `/offline` | Offline fallback shell |
-| `/reader/[id]` | PDF.js reader shell and automatic progress |
-| `GET /api/books` | List books, newest activity first |
-| `POST /api/books` | Multipart upload + metadata + duplicate hash check |
-| `PATCH /api/books/[id]` | Edit title, author, and category |
-| `DELETE /api/books/[id]` | Delete row and stored file |
-| `GET /api/books/[id]/file` | Serve the PDF inline |
-| `PATCH /api/books/[id]/progress` | Save current page and total pages, derive status |
+| Route | Access | Purpose |
+| --- | --- | --- |
+| `/` | Public | Marketing/home page |
+| `/login` | Public | Sign in / sign up |
+| `/dashboard` | Private | Overview dashboard |
+| `/library` | Private | Full book library |
+| `/recent` | Private | Books with saved progress |
+| `/bookmarks` | Private | Placeholder |
+| `/settings` | Private | Placeholder |
+| `/reader/[id]` | Private | PDF.js reader |
+| `/story-time` | Private | Story shelf |
+| `/story-time/new` | Private | Story editor |
+| `/story-time/[id]` | Private | Story reader |
+| `/story-time/[id]/edit` | Private | Story editor |
+| `/offline` | Public | PWA fallback |
 
-All database routes are Node runtime and dynamic.
+API routes under `/api` all require a session unless noted:
+
+- `GET/POST /api/books`, `PATCH/DELETE /api/books/[id]`, `GET /api/books/[id]/file`, `PATCH /api/books/[id]/progress`
+- `GET/POST /api/stories`, `GET/PATCH/DELETE /api/stories/[id]`, `POST /api/stories/[id]/images`, `PATCH /api/stories/[id]/progress`
+- `POST /api/ai/story` (optional AI draft)
+- `POST /api/blob/upload` (Vercel Blob client-upload token; auth required)
 
 ## Database
 
-SQLite file: `data/readvault.db` (WAL mode, foreign keys on, 5s busy timeout).
+Postgres schema in `db/migrations/0001_init.sql`:
 
-Current `books` table:
+- `users` — id uuid, email (unique lower index), password_hash, created_at
+- `books` — id uuid, user_id, metadata, file_name, file_path (Blob URL), file_hash, total_pages, current_page, status, cover_color, timestamps; unique `(user_id, file_hash)`
+- `stories` — id uuid, user_id, title, story_type, source_title, description, age_range, language, cover_image_path (Blob URL), status, timestamps
+- `story_pages` — id uuid, story_id, page_number, content, image_path (Blob URL), image_alt, timestamps; unique `(story_id, page_number)`
+- `story_progress` — story_id primary key, current_page, last_read_at, updated_at
+- `schema_migrations` — applied migration filenames
 
-- `id` integer primary key
-- `title`, `author`, `category`, `description`
-- `file_name`, `file_path`, `file_hash`
-- `total_pages`, `current_page`, `status` (`not_started`, `reading`, `completed`)
-- `cover_color`
-- `created_at`, `updated_at`
+There is no RLS yet. The database is accessed only by the server with a private connection string; every query filters by the session user id. Add RLS as defense-in-depth in a hardening pass.
 
-`rowToBook` maps snake_case rows to the `Book` type. `file_hash` is a SHA-256 of the uploaded PDF and has a partial unique index for duplicate rejection.
+## Auth
 
-The connection is opened lazily with `getDb()` so Next build workers do not race to seed or lock the database. The current MVP has no user table; a future `user_id` column will be added before cloud migration.
+- `POST` server actions `signUp`, `signIn`, `signOut` in `src/actions/auth.ts`.
+- Password hashing: bcrypt cost 12.
+- Session: HS256 JWT, subject = user id, 30-day expiry, HttpOnly/SameSite=Lax/Secure-in-production cookie.
+- `src/middleware.ts` redirects unauthenticated private routes to `/login` and signed-in users away from `/login`.
+- Server pages and every API route re-check the session; middleware is not the authorization boundary.
 
-## Upload Flow
+## File flow
 
-1. Client posts multipart form data to `POST /api/books`.
-2. Route validates title/author/category with Zod, file presence, PDF type/extension, 50 MB limit, and the `%PDF-` signature.
-3. Route hashes the bytes with SHA-256 and rejects duplicates with `409`.
-4. Route writes the file to `data/uploads` under a generated name via `src/lib/storage.ts`.
-5. Route inserts metadata into SQLite; if the insert fails, the file is removed.
-6. Client refreshes the library.
+1. Browser requests a short-lived Blob client token from `/api/blob/upload` (session required).
+2. Browser uploads directly to Vercel Blob (`readvault/uploads/...` or `readvault/story-images/...`), avoiding Vercel Functions' small body limit.
+3. Browser posts metadata + Blob URL to `/api/books` or `/api/stories/[id]/images`; the server verifies ownership and Blob existence.
+4. PDFs are read from the Blob URL by PDF.js; the reader caches them in the browser Cache API for offline use.
+5. Deletes remove the database row and the Blob file.
 
-## Reader and Progress
+## PDF reader
 
-`src/components/pdf-reader.tsx` dynamically imports PDF.js, renders pages to a canvas, and provides page navigation, zoom, fit width, fullscreen, and keyboard arrows. Page changes are debounced and saved to `PATCH /api/books/[id]/progress`, which also stores the detected total page count and derives reading/completed status.
+`src/components/pdf-reader.tsx` dynamically imports PDF.js, renders the current page to a canvas, and provides page navigation, zoom, fit, fullscreen, keyboard controls, debounced progress, and localStorage progress fallback. The opening curtain and page-turn animation use `src/app/globals.css`.
 
-When a PDF is opened, the reader fetches it once and stores the response in the `readvault-pdfs` Cache API cache. Later offline opens read the PDF from that cache. The reader also warms a full HTML navigation of the reader route so the service worker has a shell for offline reloads.
+## Story Time
 
-## PWA and Offline
+- Story editor at `src/components/story-editor.tsx`; optional AI draft via `/api/ai/story` (OpenAI-compatible DeepSeek/OpenAI).
+- Story reader at `src/components/story-reader.tsx`; page-by-page, read-aloud via SpeechSynthesis, print/save PDF, saved progress, storybook curtain/page-turn.
+- Images upload directly to Blob, then attach to a story cover/page through the authenticated image route.
+- Copyright guardrails: original wording only; no official characters/artwork/scripts.
 
-- `public/manifest.webmanifest` describes the standalone app and icons.
-- `src/components/pwa-register.tsx` registers `public/sw.js` in production and requests persisted storage.
-- The service worker precaches the app shell, offline page, manifest, icons, and PDF.js worker. Navigation is network-first with cached/offline fallback; static assets are cache-first; the library API is network-first.
-- PDF files are deliberately cached by the reader through the Cache API (`readvault-pdfs`), not by the service worker.
-- Service workers require HTTPS. See `docs/PWA_iPhone.md` for the iPhone/tunnel workflow.
+## PWA
 
-## Deletion
+- `public/manifest.webmanifest`, `public/sw.js`, icons in `public/icons`.
+- Service worker registers in production; caches the app shell, static assets, `/api/books` for offline library, and the PDF.js worker.
+- PDFs are cached by the reader in `readvault-pdfs`; story pages and images depend on the app shell/network cache.
+- HTTPS is required for installation on iPhone.
 
-Delete removes the database row first, then the stored file if it exists. A future hardening pass should reconcile partial failures (row deleted but file missing, or file deletion failure) and clean orphan files.
+## Future hardening
 
-## Future Migration
-
-The repository/storage boundaries are intended to keep the UI independent of SQLite and local files. Cloud migration will:
-
-- Move metadata to Supabase PostgreSQL with UUIDs and `user_id`.
-- Move PDFs to private Supabase Storage with short-lived URLs.
-- Add Supabase Auth and RLS.
-- Replace `src/lib/db.ts` with repository implementations without changing the UI contracts.
+- RLS with transaction-local user ids
+- Private Blob storage / signed URLs
+- Email verification and password reset
+- Story/book sync status and conflict handling
+- Backups, monitoring, and upload quotas
+- Tests for store integration and auth flows

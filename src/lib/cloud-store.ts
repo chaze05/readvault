@@ -1,9 +1,9 @@
-import { del, get, head, put } from "@vercel/blob";
+import { del, get, head, list, put } from "@vercel/blob";
 
 import { DuplicateBookError } from "./book-errors";
 import type { Book, BookStatus } from "./types";
 
-const BOOKS_PATH = "readvault/books.json";
+const BOOKS_PREFIX = "readvault/books/";
 const COVER_COLORS = [
   "#344d43",
   "#3f6681",
@@ -30,10 +30,6 @@ interface CloudBookRecord {
   updatedAt: string;
 }
 
-interface CloudIndex {
-  books: CloudBookRecord[];
-}
-
 export interface CreateCloudBookInput {
   title: string;
   author: string;
@@ -41,6 +37,10 @@ export interface CreateCloudBookInput {
   fileName: string;
   fileUrl: string;
   fileHash: string;
+}
+
+function metadataPath(id: number): string {
+  return `${BOOKS_PREFIX}${id}.json`;
 }
 
 function toBook(record: CloudBookRecord): Book {
@@ -62,26 +62,18 @@ function toBook(record: CloudBookRecord): Book {
   };
 }
 
-async function getIndex(): Promise<CloudIndex> {
+async function readRecord(pathname: string): Promise<CloudBookRecord | null> {
   try {
-    const indexBlob = await get(BOOKS_PATH, {
-      access: "public",
-      useCache: false,
-    });
-
-    if (!indexBlob || indexBlob.statusCode !== 200) {
-      return { books: [] };
-    }
-
-    const data = (await new Response(indexBlob.stream).json()) as Partial<CloudIndex>;
-    return { books: Array.isArray(data.books) ? data.books : [] };
+    const blob = await get(pathname, { access: "public", useCache: false });
+    if (!blob || blob.statusCode !== 200) return null;
+    return (await new Response(blob.stream).json()) as CloudBookRecord;
   } catch {
-    return { books: [] };
+    return null;
   }
 }
 
-async function saveIndex(index: CloudIndex): Promise<void> {
-  await put(BOOKS_PATH, JSON.stringify(index), {
+async function writeRecord(record: CloudBookRecord): Promise<void> {
+  await put(metadataPath(record.id), JSON.stringify(record), {
     access: "public",
     addRandomSuffix: false,
     allowOverwrite: true,
@@ -90,25 +82,33 @@ async function saveIndex(index: CloudIndex): Promise<void> {
   });
 }
 
+async function listRecords(): Promise<CloudBookRecord[]> {
+  const { blobs } = await list({ prefix: BOOKS_PREFIX, limit: 1000 });
+  const records = await Promise.all(
+    blobs.map((blob) => readRecord(blob.pathname))
+  );
+
+  return records.filter((record): record is CloudBookRecord => Boolean(record));
+}
+
 export async function listCloudBooks(): Promise<Book[]> {
-  const index = await getIndex();
-  return index.books
+  const records = await listRecords();
+  return records
     .map(toBook)
     .sort((a, b) => b.updatedAt.localeCompare(a.updatedAt));
 }
 
 export async function getCloudBook(id: number): Promise<Book | null> {
-  const index = await getIndex();
-  const record = index.books.find((book) => book.id === id);
+  const record = await readRecord(metadataPath(id));
   return record ? toBook(record) : null;
 }
 
 export async function createCloudBook(
   input: CreateCloudBookInput
 ): Promise<Book> {
-  const index = await getIndex();
-  const duplicate = index.books.find(
-    (book) => book.fileHash === input.fileHash
+  const records = await listRecords();
+  const duplicate = records.find(
+    (record) => record.fileHash === input.fileHash
   );
 
   if (duplicate) {
@@ -142,10 +142,8 @@ export async function createCloudBook(
     updatedAt: now,
   };
 
-  index.books.push(record);
-
   try {
-    await saveIndex(index);
+    await writeRecord(record);
   } catch (error) {
     await del(input.fileUrl).catch(() => {});
     throw error;
@@ -158,28 +156,23 @@ export async function updateCloudBook(
   id: number,
   input: { title: string; author: string; category: string }
 ): Promise<Book | null> {
-  const index = await getIndex();
-  const record = index.books.find((book) => book.id === id);
-
+  const record = await readRecord(metadataPath(id));
   if (!record) return null;
 
   record.title = input.title;
   record.author = input.author;
   record.category = input.category;
   record.updatedAt = new Date().toISOString();
-  await saveIndex(index);
+  await writeRecord(record);
 
   return toBook(record);
 }
 
 export async function deleteCloudBook(id: number): Promise<boolean> {
-  const index = await getIndex();
-  const record = index.books.find((book) => book.id === id);
-
+  const record = await readRecord(metadataPath(id));
   if (!record) return false;
 
-  index.books = index.books.filter((book) => book.id !== id);
-  await saveIndex(index);
+  await del(metadataPath(id));
   await del(record.fileUrl).catch(() => {});
 
   return true;
@@ -194,9 +187,7 @@ export async function saveCloudProgress(
   totalPages: number;
   status: BookStatus;
 } | null> {
-  const index = await getIndex();
-  const record = index.books.find((book) => book.id === id);
-
+  const record = await readRecord(metadataPath(id));
   if (!record) return null;
 
   const effectiveTotal = totalPages ?? record.totalPages;
@@ -213,7 +204,7 @@ export async function saveCloudProgress(
   record.totalPages = effectiveTotal;
   record.status = status;
   record.updatedAt = new Date().toISOString();
-  await saveIndex(index);
+  await writeRecord(record);
 
   return { currentPage: page, totalPages: effectiveTotal, status };
 }
@@ -221,9 +212,7 @@ export async function saveCloudProgress(
 export async function getCloudFile(
   id: number
 ): Promise<{ buffer: Buffer; fileName: string } | null> {
-  const index = await getIndex();
-  const record = index.books.find((book) => book.id === id);
-
+  const record = await readRecord(metadataPath(id));
   if (!record) return null;
 
   const response = await fetch(record.fileUrl, { cache: "no-store" });

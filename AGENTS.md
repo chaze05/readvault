@@ -30,7 +30,7 @@ ReadVault is a multi-user PDF library and family Story Time app. Accounts, metad
 - Story/book images and PDFs are Blob URLs; validate ownership before attaching/deleting.
 - Middleware is an optimistic redirect only; server routes still re-check auth.
 - Keep `AUTH_SECRET` and `BLOB_READ_WRITE_TOKEN` out of git.
-- v1 has no email verification or password reset; do not market it as a fully hardened public signup until those exist.
+- Signups are closed unless `ALLOW_SIGNUPS=true`; set it only for intentional testing. v1 has no email verification or password reset; do not open public signup until those exist.
 - Blob URLs are currently public-but-unguessable. Do not treat them as private storage; add private Blobs/signed URLs before sensitive use.
 
 ## Story Time rules
@@ -47,7 +47,7 @@ Before a milestone is done:
 1. `npm.cmd test`
 2. `npm.cmd run lint`
 3. `npm.cmd run build`
-4. Smoke-test signup → PDF upload/read/edit/delete → Story Time create/edit/images/read/delete → sign-out protection.
+4. Smoke-test invitation-only sign-in → PDF upload/read/edit/delete → Story Time create/edit/images/read/delete → sign-out protection.
 5. For PWA changes, test the production server and reload a cached book offline.
 
 Commit small milestones. Do not commit `.env.local`, `.neon`, Blob tokens, or user data.

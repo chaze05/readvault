@@ -8,7 +8,7 @@ A private, multi-user PDF library and family Story Time app. Sign in, upload and
 ## Features
 
 - Email/password accounts with private per-user libraries.
-- Public home page, sign in / sign up, and protected app routes.
+- Public home page, invitation-only sign in, and protected app routes.
 - PDF CRUD: upload, list, search, filter, sort, edit metadata, delete.
 - Duplicate detection by SHA-256 hash per account.
 - PDF.js reader: page navigation, zoom, fit width, fullscreen, keyboard arrows, automatic progress, resume.
@@ -89,7 +89,7 @@ Requirements: Node.js 22.13+, a Postgres database, and a Vercel Blob token.
 
 ## Auth and data isolation
 
-- Users sign up with email/password; passwords are bcrypt-hashed.
+- Accounts are invitation-only by default. Signup is closed unless `ALLOW_SIGNUPS=true`; passwords are bcrypt-hashed.
 - Sessions are 30-day HS256 JWTs in an HttpOnly, SameSite=Lax cookie, Secure in production.
 - `src/middleware.ts` protects `/dashboard`, `/library`, `/recent`, `/bookmarks`, `/settings`, `/reader`, and `/story-time`.
 - Every database query and server action scopes rows by the signed-in user id.
@@ -103,6 +103,7 @@ Production env vars:
 - `AUTH_SECRET` — 32+ random characters
 - `BLOB_READ_WRITE_TOKEN` — from the connected Blob store
 - `AI_API_KEY` — optional, enables the Story Time AI draft button
+- `ALLOW_SIGNUPS` — optional; leave unset/false to keep public signup closed
 
 The Neon schema was applied with `npm run db:migrate:prod`. Deploy with `vercel --prod` or push to the connected GitHub repository.
 
@@ -125,7 +126,7 @@ npm.cmd run lint
 npm.cmd run build
 ```
 
-The full local/live smoke covers signup, PDF upload/read/edit/delete, Story Time create/edit/cover/page images/read, and sign-out protection.
+The full local/live smoke covers invite-only sign-in, PDF upload/read/edit/delete, Story Time create/edit/cover/page images/read, and sign-out protection. Temporarily set `ALLOW_SIGNUPS=true` only when intentionally testing the closed signup path.
 
 ## Docs
 

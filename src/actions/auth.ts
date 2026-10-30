@@ -23,6 +23,13 @@ function isUniqueViolation(error: unknown): boolean {
 export async function signUp(
   formData: FormData
 ): Promise<{ ok: true } | { error: string }> {
+  if (process.env.ALLOW_SIGNUPS !== "true") {
+    return {
+      error:
+        "Signups are currently closed. Please sign in with your invitation account.",
+    };
+  }
+
   const parsed = signUpSchema.safeParse({
     email: formString(formData, "email"),
     password: formString(formData, "password"),

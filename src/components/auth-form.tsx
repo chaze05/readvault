@@ -4,23 +4,15 @@ import { useState, type FormEvent } from "react";
 import { useRouter } from "next/navigation";
 import { Eye, EyeOff, Loader2, Sparkles } from "lucide-react";
 
-import { signIn, signUp } from "@/actions/auth";
-
-type Mode = "signin" | "signup";
+import { signIn } from "@/actions/auth";
 
 export function AuthForm() {
   const router = useRouter();
-  const [mode, setMode] = useState<Mode>("signin");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState("");
-
-  function switchMode(next: Mode) {
-    setMode(next);
-    setError("");
-  }
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -32,8 +24,7 @@ export function AuthForm() {
       formData.set("email", email.trim());
       formData.set("password", password);
 
-      const result =
-        mode === "signin" ? await signIn(formData) : await signUp(formData);
+      const result = await signIn(formData);
 
       if ("error" in result) {
         setError(result.error);
@@ -58,35 +49,10 @@ export function AuthForm() {
         <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-2xl bg-brand-soft">
           <Sparkles className="h-5 w-5 text-brand" />
         </div>
-        <h1 className="m-0 text-2xl font-bold text-ink">
-          {mode === "signin" ? "Welcome back" : "Create your library"}
-        </h1>
+        <h1 className="m-0 text-2xl font-bold text-ink">Welcome back</h1>
         <p className="mb-0 mt-2 text-sm text-muted">
-          {mode === "signin"
-            ? "Sign in to your books and stories."
-            : "One account for your books, stories, and reading progress."}
+          Sign in to your books and stories.
         </p>
-      </div>
-
-      <div className="mb-6 grid grid-cols-2 rounded-xl border border-line bg-paper p-1 text-sm">
-        <button
-          type="button"
-          onClick={() => switchMode("signin")}
-          className={`rounded-lg px-3 py-2 font-semibold transition ${
-            mode === "signin" ? "bg-white text-ink shadow-sm" : "text-muted"
-          }`}
-        >
-          Sign in
-        </button>
-        <button
-          type="button"
-          onClick={() => switchMode("signup")}
-          className={`rounded-lg px-3 py-2 font-semibold transition ${
-            mode === "signup" ? "bg-white text-ink shadow-sm" : "text-muted"
-          }`}
-        >
-          Sign up
-        </button>
       </div>
 
       <form onSubmit={submit} className="flex flex-col gap-4">
@@ -108,12 +74,11 @@ export function AuthForm() {
           <span className="relative">
             <input
               type={showPassword ? "text" : "password"}
-              autoComplete={mode === "signin" ? "current-password" : "new-password"}
+              autoComplete="current-password"
               required
-              minLength={8}
               value={password}
               onChange={(event) => setPassword(event.target.value)}
-              placeholder="At least 8 characters"
+              placeholder="Your password"
               className={`${inputClass} pr-10`}
             />
             <button
@@ -139,12 +104,12 @@ export function AuthForm() {
           className="mt-1 inline-flex items-center justify-center gap-2 rounded-xl bg-brand px-4 py-3 text-sm font-semibold text-white transition hover:bg-[#274a38] disabled:opacity-60"
         >
           {pending && <Loader2 className="h-4 w-4 animate-spin" />}
-          {mode === "signin" ? "Sign in" : "Create account"}
+          Sign in
         </button>
       </form>
 
       <p className="mb-0 mt-6 text-center text-xs text-muted">
-        Books, stories, and reading progress stay private to your account.
+        Accounts are currently invitation-only.
       </p>
     </div>
   );

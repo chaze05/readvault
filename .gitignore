@@ -18,3 +18,4 @@ public/pdf.worker.min.mjs
 .vercel
 .env*
 .neon
+.local-credentials.txt

@@ -2,6 +2,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import {
   BookOpen,
+  Bot,
   Database,
   ShieldCheck,
   SlidersHorizontal,
@@ -11,6 +12,7 @@ import {
 
 import { MobileNav } from "@/components/mobile-nav";
 import { AccountSummary } from "@/components/settings/account-summary";
+import { AiSettingsForm } from "@/components/settings/ai-settings-form";
 import { DataForm } from "@/components/settings/data-form";
 import { FamilySection } from "@/components/settings/family-section";
 import { ReadingForm } from "@/components/settings/reading-form";
@@ -18,6 +20,11 @@ import { SecurityForm } from "@/components/settings/security-form";
 import { SettingsSection } from "@/components/settings/settings-section";
 import { Sidebar } from "@/components/sidebar";
 import { listFamilyAccounts } from "@/lib/admin-accounts";
+import {
+  AiSettingsError,
+  getAiSettingsView,
+  type AiSettingsView,
+} from "@/lib/ai/settings";
 import { getCurrentUser } from "@/lib/current-user";
 import { getPreferences } from "@/lib/preferences";
 import { getSession } from "@/lib/session-cookies";
@@ -46,6 +53,19 @@ export default async function SettingsPage() {
         isAdmin: account.isAdmin,
       }))
     : [];
+
+  let aiSettings: AiSettingsView | null = null;
+
+  if (isActiveAdmin) {
+    try {
+      aiSettings = await getAiSettingsView();
+    } catch (error) {
+      console.error(
+        "[settings] AI settings unavailable:",
+        error instanceof AiSettingsError ? error.code : "unexpected"
+      );
+    }
+  }
 
   return (
     <div className="app-shell">
@@ -119,6 +139,16 @@ export default async function SettingsPage() {
                   icon={<UsersRound size={20} />}
                 >
                   <FamilySection accounts={familyAccounts} />
+                </SettingsSection>
+              )}
+
+              {isActiveAdmin && (
+                <SettingsSection
+                  title="AI story drafts"
+                  description="Configure the AI provider used for story drafts. Only administrators can view or change these settings."
+                  icon={<Bot size={20} />}
+                >
+                  <AiSettingsForm initialSettings={aiSettings} />
                 </SettingsSection>
               )}
             </div>

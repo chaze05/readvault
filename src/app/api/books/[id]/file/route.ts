@@ -1,11 +1,12 @@
 import { NextResponse } from "next/server";
 import fs from "node:fs";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function GET(_request: Request, context: { params: Promise<{ id: string }> }) {
+  const db = getDb();
   const { id } = await context.params;
   const row = db.prepare("SELECT file_path, file_name FROM books WHERE id = ?").get(Number(id)) as
     { file_path?: string; file_name?: string } | undefined;

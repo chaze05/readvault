@@ -1,6 +1,6 @@
 import Link from "next/link";
 import { ArrowLeft, BookOpen, FileText } from "lucide-react";
-import { db, rowToBook } from "@/lib/db";
+import { getDb, rowToBook } from "@/lib/db";
 import { ReaderProgress } from "@/components/reader-progress";
 import { notFound } from "next/navigation";
 
@@ -8,6 +8,7 @@ export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export default async function ReaderPage({ params }: { params: Promise<{ id: string }> }) {
+  const db = getDb();
   const { id } = await params;
   const row = db.prepare("SELECT * FROM books WHERE id = ?").get(Number(id)) as Record<string, unknown> | undefined;
   if (!row) notFound();

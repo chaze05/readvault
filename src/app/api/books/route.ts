@@ -1,7 +1,7 @@
 import { NextRequest, NextResponse } from "next/server";
 import fs from "node:fs";
 import path from "node:path";
-import { db, rowToBook } from "@/lib/db";
+import { getDb, rowToBook } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,12 +9,14 @@ export const dynamic = "force-dynamic";
 const colors = ["#344d43", "#3f6681", "#8b6347", "#655b83", "#47736e", "#6f7650"];
 
 export async function GET() {
+  const db = getDb();
   const rows = db.prepare("SELECT * FROM books ORDER BY updated_at DESC, id DESC").all() as Record<string, unknown>[];
   return NextResponse.json(rows.map(rowToBook));
 }
 
 export async function POST(request: NextRequest) {
   try {
+    const db = getDb();
     const form = await request.formData();
     const file = form.get("file");
     const title = String(form.get("title") || "").trim();

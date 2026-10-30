@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
-import { Search, Upload, BookOpen, BookCheck, Library, ArrowUpRight, MoreHorizontal, Trash2, Sparkles, Menu } from "lucide-react";
+import { Search, Upload, BookOpen, BookCheck, Library, ArrowUpRight, Trash2, Sparkles } from "lucide-react";
 import { Sidebar } from "@/components/sidebar";
 import { BookCover } from "@/components/book-cover";
 import { UploadDialog } from "@/components/upload-dialog";

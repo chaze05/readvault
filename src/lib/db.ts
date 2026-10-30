@@ -12,6 +12,7 @@ function createDatabase() {
   const database = new Database(dbPath);
   database.pragma("journal_mode = WAL");
   database.pragma("foreign_keys = ON");
+  database.pragma("busy_timeout = 5000");
 
   database.exec(`
     CREATE TABLE IF NOT EXISTS books (
@@ -50,8 +51,13 @@ function createDatabase() {
   return database;
 }
 
-export const db = globalForDb.readvaultDb ?? createDatabase();
-if (process.env.NODE_ENV !== "production") globalForDb.readvaultDb = db;
+export function getDb(): Database.Database {
+  if (!globalForDb.readvaultDb) {
+    globalForDb.readvaultDb = createDatabase();
+  }
+
+  return globalForDb.readvaultDb;
+}
 
 export function rowToBook(row: Record<string, unknown>) {
   return {

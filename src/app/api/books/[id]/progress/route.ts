@@ -1,10 +1,11 @@
 import { NextRequest, NextResponse } from "next/server";
-import { db } from "@/lib/db";
+import { getDb } from "@/lib/db";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
 export async function PATCH(request: NextRequest, context: { params: Promise<{ id: string }> }) {
+  const db = getDb();
   const { id } = await context.params;
   const body = await request.json();
   const page = Math.max(0, Math.floor(Number(body.currentPage) || 0));

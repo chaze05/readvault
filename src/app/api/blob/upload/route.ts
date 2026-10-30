@@ -1,11 +1,20 @@
 import { handleUpload, type HandleUploadBody } from "@vercel/blob/client";
 
+import { getSession } from "@/lib/session-cookies";
 import { MAX_FILE_BYTES } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
+const IMAGE_TYPES = ["image/jpeg", "image/png", "image/webp"];
+const MAX_IMAGE_BYTES = 8 * 1024 * 1024;
+
 export async function POST(request: Request) {
+  const session = await getSession();
+  if (!session) {
+    return Response.json({ error: "Unauthorized" }, { status: 401 });
+  }
+
   if (!process.env.BLOB_READ_WRITE_TOKEN) {
     return Response.json(
       { error: "Blob storage is not configured." },
@@ -24,11 +33,28 @@ export async function POST(request: Request) {
   const response = await handleUpload({
     body,
     request,
-    onBeforeGenerateToken: async () => ({
-      allowedContentTypes: ["application/pdf"],
-      maximumSizeInBytes: MAX_FILE_BYTES,
-      addRandomSuffix: true,
-    }),
+    onBeforeGenerateToken: async (_pathname, clientPayload) => {
+      let kind = "pdf";
+      try {
+        kind = JSON.parse(clientPayload || "{}").kind ?? "pdf";
+      } catch {
+        kind = "pdf";
+      }
+
+      if (kind === "story-image") {
+        return {
+          allowedContentTypes: IMAGE_TYPES,
+          maximumSizeInBytes: MAX_IMAGE_BYTES,
+          addRandomSuffix: true,
+        };
+      }
+
+      return {
+        allowedContentTypes: ["application/pdf"],
+        maximumSizeInBytes: MAX_FILE_BYTES,
+        addRandomSuffix: true,
+      };
+    },
     onUploadCompleted: async () => {},
   });
 

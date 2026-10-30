@@ -1,9 +1,11 @@
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { ArrowLeft, BookOpen } from "lucide-react";
 
 import { PdfReader } from "@/components/pdf-reader";
 import { getBook } from "@/lib/book-store";
+import { getSession } from "@/lib/session-cookies";
+import { isUuid } from "@/lib/uuid";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -13,9 +15,13 @@ export default async function ReaderPage({
 }: {
   params: Promise<{ id: string }>;
 }) {
-  const { id } = await params;
-  const book = await getBook(Number(id));
+  const session = await getSession();
+  if (!session) redirect("/login");
 
+  const { id } = await params;
+  if (!isUuid(id)) notFound();
+
+  const book = await getBook(session.userId, id);
   if (!book) notFound();
 
   return (

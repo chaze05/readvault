@@ -25,7 +25,7 @@ export function PdfReader({
   initialTotalPages,
   title,
 }: {
-  bookId: number;
+  bookId: string;
   fileUrl?: string;
   initialPage: number;
   initialTotalPages: number;

@@ -29,7 +29,6 @@ export function UploadDialog({
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
   const inputRef = useRef<HTMLInputElement>(null);
-  const cloudMode = process.env.NEXT_PUBLIC_STORAGE_DRIVER === "blob";
 
   async function submit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -46,60 +45,37 @@ export function UploadDialog({
     setError("");
 
     try {
-      const resolvedTitle =
-        title.trim() || file.name.replace(/\.pdf$/i, "");
-
-      if (cloudMode) {
-        const buffer = await file.arrayBuffer();
-        const fileHash = await sha256(buffer);
-        const blob = await upload(
-          `readvault/uploads/${crypto.randomUUID()}.pdf`,
-          file,
-          {
-            access: "public",
-            handleUploadUrl: "/api/blob/upload",
-          }
-        );
-
-        const response = await fetch("/api/books", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            title: resolvedTitle,
-            author,
-            category,
-            fileName: file.name,
-            fileHash,
-            fileUrl: blob.url,
-          }),
-        });
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Upload failed.");
+      const resolvedTitle = title.trim() || file.name.replace(/\.pdf$/i, "");
+      const buffer = await file.arrayBuffer();
+      const fileHash = await sha256(buffer);
+      const blob = await upload(
+        `readvault/uploads/${crypto.randomUUID()}.pdf`,
+        file,
+        {
+          access: "public",
+          handleUploadUrl: "/api/blob/upload",
         }
+      );
 
-        onUploaded(data as Book);
-      } else {
-        const form = new FormData();
-        form.append("file", file);
-        form.append("title", resolvedTitle);
-        form.append("author", author);
-        form.append("category", category);
+      const response = await fetch("/api/books", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: resolvedTitle,
+          author,
+          category,
+          fileName: file.name,
+          fileHash,
+          fileUrl: blob.url,
+        }),
+      });
+      const data = await response.json();
 
-        const response = await fetch("/api/books", {
-          method: "POST",
-          body: form,
-        });
-        const data = await response.json();
-
-        if (!response.ok) {
-          throw new Error(data.error || "Upload failed.");
-        }
-
-        onUploaded(data as Book);
+      if (!response.ok) {
+        throw new Error(data.error || "Upload failed.");
       }
 
+      onUploaded(data as Book);
       onClose();
     } catch (uploadError) {
       setError(

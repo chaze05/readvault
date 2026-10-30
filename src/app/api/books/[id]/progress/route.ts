@@ -1,6 +1,8 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { saveProgress } from "@/lib/book-store";
+import { getSession } from "@/lib/session-cookies";
+import { isUuid } from "@/lib/uuid";
 import { parseProgress } from "@/lib/validation";
 
 export const runtime = "nodejs";
@@ -10,10 +12,13 @@ export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params;
-  const bookId = Number(id);
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  if (!Number.isInteger(bookId) || bookId <= 0) {
+  const { id } = await context.params;
+  if (!isUuid(id)) {
     return NextResponse.json({ error: "Invalid book id." }, { status: 400 });
   }
 
@@ -25,7 +30,8 @@ export async function PATCH(
   }
 
   const result = await saveProgress(
-    bookId,
+    session.userId,
+    id,
     parsed.data.currentPage,
     parsed.data.totalPages
   );

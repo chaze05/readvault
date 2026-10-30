@@ -127,3 +127,31 @@ button { cursor: pointer; }
   }
   .mobile-bottom-link.active { color: #315b45; background: #eaf1eb; }
 }
+
+/* Story Time */
+.story-cover {
+  height: 205px; overflow: hidden; border-radius: 13px; color: #fff;
+  background: radial-gradient(circle at 20% 20%, #b79bd2, transparent 40%), linear-gradient(145deg, #8c6aae, #4f6475);
+}
+.story-cover img { display: block; }
+.print-story { display: none; }
+.story-curtain {
+  position: fixed; inset: 0;
+  background: radial-gradient(circle at 50% 38%, #fffdf7 0%, #f1e8f7 45%, #e7dff2 100%);
+}
+.story-curtain .curtain-book { background: #7954a5; }
+.story-curtain .curtain-kicker { color: #8b65bd; }
+.story-curtain .curtain-title { color: #3a2749; }
+@media print {
+  @page { size: A4; margin: 18mm; }
+  body { background: white !important; }
+  .screen-story { display: none !important; }
+  .print-story { display: block !important; color: #282333; font-family: Georgia, serif; }
+  .print-cover { min-height: 240mm; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; page-break-after: always; }
+  .print-cover h1 { font-size: 32pt; color: #60447d; }
+  .print-cover p { font-size: 13pt; }
+  .print-page { min-height: 245mm; display: flex; flex-direction: column; justify-content: center; align-items: center; page-break-after: always; break-after: page; }
+  .print-page img { max-width: 100%; max-height: 110mm; object-fit: contain; margin-bottom: 14mm; }
+  .print-page-number { font: bold 9pt Arial, sans-serif; color: #9276aa; letter-spacing: 2pt; text-transform: uppercase; }
+  .print-page-text { max-width: 150mm; font-size: 17pt; line-height: 1.8; white-space: pre-wrap; text-align: center; }
+}

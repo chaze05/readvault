@@ -31,6 +31,61 @@ const bookFields = {
 export const bookCreateSchema = z.object(bookFields);
 export const bookUpdateSchema = z.object(bookFields);
 
+const authEmailSchema = z
+  .string()
+  .trim()
+  .toLowerCase()
+  .pipe(z.email({ error: "Enter a valid email address." }));
+
+export const signUpSchema = z.object({
+  email: authEmailSchema,
+  password: z
+    .string()
+    .min(8, "Password must be at least 8 characters.")
+    .max(200)
+    .refine(
+      (value) => new TextEncoder().encode(value).length <= 72,
+      "Password must be 72 bytes or fewer."
+    ),
+});
+
+export const signInSchema = z.object({
+  email: authEmailSchema,
+  password: z.string().min(1, "Password is required.").max(200),
+});
+
+const storyPageInputSchema = z.object({
+  id: z.uuid().optional(),
+  content: z.string().trim().min(1).max(10_000),
+});
+
+export const storyInputSchema = z
+  .object({
+    title: z.string().trim().min(1, "A story title is required.").max(160),
+    storyType: z.enum(["original", "movie_inspired"]),
+    sourceTitle: z.string().trim().max(160).optional().default(""),
+    description: z.string().trim().max(1000).optional().default(""),
+    ageRange: z.string().trim().max(40).optional().default("Ages 6–8"),
+    language: z.string().trim().max(12).optional().default("en"),
+    status: z.enum(["draft", "published"]).default("draft"),
+    pages: z.array(storyPageInputSchema).max(100).default([]),
+  })
+  .refine(
+    (data) => data.storyType !== "movie_inspired" || Boolean(data.sourceTitle),
+    {
+      message: "Enter the movie or inspiration title.",
+      path: ["sourceTitle"],
+    }
+  );
+
+export const aiStorySchema = z.object({
+  title: z.string().trim().max(160).optional().default(""),
+  idea: z.string().trim().min(3, "Describe the story idea first.").max(1000),
+  storyType: z.enum(["original", "movie_inspired"]),
+  sourceTitle: z.string().trim().max(160).optional().default(""),
+  ageRange: z.string().trim().max(40).optional().default("Ages 6–8"),
+});
+
 export const cloudBookInputSchema = bookCreateSchema.extend({
   fileName: z.string().trim().min(1).max(255),
   fileHash: z
@@ -48,6 +103,10 @@ export type BookInput = z.infer<typeof bookCreateSchema>;
 export type BookUpdateInput = z.infer<typeof bookUpdateSchema>;
 export type CloudBookInput = z.infer<typeof cloudBookInputSchema>;
 export type ProgressInput = z.infer<typeof progressSchema>;
+export type SignUpInput = z.infer<typeof signUpSchema>;
+export type SignInInput = z.infer<typeof signInSchema>;
+export type StoryInput = z.infer<typeof storyInputSchema>;
+export type AiStoryInput = z.infer<typeof aiStorySchema>;
 
 function firstIssue(result: z.ZodSafeParseResult<unknown>): string {
   return result.success
@@ -93,6 +152,26 @@ export function parseProgress(
   body: unknown
 ): { success: true; data: ProgressInput } | { success: false; error: string } {
   const result = progressSchema.safeParse(body);
+
+  return result.success
+    ? { success: true, data: result.data }
+    : { success: false, error: firstIssue(result) };
+}
+
+export function parseStoryInput(
+  body: unknown
+): { success: true; data: StoryInput } | { success: false; error: string } {
+  const result = storyInputSchema.safeParse(body);
+
+  return result.success
+    ? { success: true, data: result.data }
+    : { success: false, error: firstIssue(result) };
+}
+
+export function parseAiStoryInput(
+  body: unknown
+): { success: true; data: AiStoryInput } | { success: false; error: string } {
+  const result = aiStorySchema.safeParse(body);
 
   return result.success
     ? { success: true, data: result.data }

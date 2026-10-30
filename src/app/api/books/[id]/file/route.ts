@@ -1,6 +1,8 @@
 import { NextResponse } from "next/server";
 
 import { getBookFile } from "@/lib/book-store";
+import { getSession } from "@/lib/session-cookies";
+import { isUuid } from "@/lib/uuid";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
@@ -9,14 +11,17 @@ export async function GET(
   _request: Request,
   context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params;
-  const bookId = Number(id);
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  if (!Number.isInteger(bookId) || bookId <= 0) {
+  const { id } = await context.params;
+  if (!isUuid(id)) {
     return NextResponse.json({ error: "Invalid book id." }, { status: 400 });
   }
 
-  const file = await getBookFile(bookId);
+  const file = await getBookFile(session.userId, id);
   if (!file) {
     return NextResponse.json(
       { error: "No PDF file is attached to this book." },
@@ -24,14 +29,5 @@ export async function GET(
     );
   }
 
-  const fileName = file.fileName.replace(/["\\]/g, "");
-
-  return new NextResponse(new Uint8Array(file.buffer), {
-    headers: {
-      "Content-Type": "application/pdf",
-      "Content-Disposition": `inline; filename="${fileName}"`,
-      "Content-Length": String(file.buffer.length),
-      "Cache-Control": "private, no-store",
-    },
-  });
+  return NextResponse.redirect(file.fileUrl);
 }

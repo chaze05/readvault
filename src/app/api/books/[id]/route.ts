@@ -1,24 +1,24 @@
 import { NextRequest, NextResponse } from "next/server";
 
 import { deleteBook, updateBook } from "@/lib/book-store";
+import { getSession } from "@/lib/session-cookies";
+import { isUuid } from "@/lib/uuid";
 import { parseBookUpdate } from "@/lib/validation";
 
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
 
-function parseId(id: string): number | null {
-  const value = Number(id);
-  return Number.isInteger(value) && value > 0 ? value : null;
-}
-
 export async function PATCH(
   request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params;
-  const bookId = parseId(id);
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  if (!bookId) {
+  const { id } = await context.params;
+  if (!isUuid(id)) {
     return NextResponse.json({ error: "Invalid book id." }, { status: 400 });
   }
 
@@ -29,7 +29,7 @@ export async function PATCH(
     return NextResponse.json({ error: parsed.error }, { status: 400 });
   }
 
-  const book = await updateBook(bookId, parsed.data);
+  const book = await updateBook(session.userId, id, parsed.data);
   if (!book) {
     return NextResponse.json({ error: "Book not found." }, { status: 404 });
   }
@@ -41,14 +41,17 @@ export async function DELETE(
   _request: NextRequest,
   context: { params: Promise<{ id: string }> }
 ) {
-  const { id } = await context.params;
-  const bookId = parseId(id);
+  const session = await getSession();
+  if (!session) {
+    return NextResponse.json({ error: "Unauthorized" }, { status: 401 });
+  }
 
-  if (!bookId) {
+  const { id } = await context.params;
+  if (!isUuid(id)) {
     return NextResponse.json({ error: "Invalid book id." }, { status: 400 });
   }
 
-  const deleted = await deleteBook(bookId);
+  const deleted = await deleteBook(session.userId, id);
   if (!deleted) {
     return NextResponse.json({ error: "Book not found." }, { status: 404 });
   }

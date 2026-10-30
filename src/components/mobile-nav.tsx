@@ -2,13 +2,19 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { Bookmark, Clock3, LayoutDashboard, Library, Settings } from "lucide-react";
+import {
+  Clock3,
+  LayoutDashboard,
+  Library,
+  Settings,
+  WandSparkles,
+} from "lucide-react";
 
 const links = [
-  { label: "Overview", href: "/", icon: LayoutDashboard },
+  { label: "Overview", href: "/dashboard", icon: LayoutDashboard },
   { label: "Library", href: "/library", icon: Library },
   { label: "Recent", href: "/recent", icon: Clock3 },
-  { label: "Bookmarks", href: "/bookmarks", icon: Bookmark },
+  { label: "Stories", href: "/story-time", icon: WandSparkles },
   { label: "Settings", href: "/settings", icon: Settings },
 ];
 
@@ -18,7 +24,8 @@ export function MobileNav() {
   return (
     <nav className="mobile-bottom-nav" aria-label="Mobile navigation">
       {links.map(({ label, href, icon: Icon }) => {
-        const active = href === "/" ? pathname === "/" : pathname.startsWith(href);
+        const active =
+          href === "/dashboard" ? pathname === href : pathname.startsWith(href);
 
         return (
           <Link

@@ -1,7 +1,7 @@
 export type BookStatus = "not_started" | "reading" | "completed";
 
 export type Book = {
-  id: number;
+  id: string;
   title: string;
   author: string;
   category: string;
@@ -17,8 +17,30 @@ export type Book = {
   updatedAt: string;
 };
 
-export type CreateBookInput = {
+export type StoryType = "original" | "movie_inspired";
+export type StoryStatus = "draft" | "published";
+
+export type StoryPage = {
+  id: string;
+  pageNumber: number;
+  content: string;
+  imageUrl: string | null;
+  imageAlt: string | null;
+};
+
+export type Story = {
+  id: string;
   title: string;
-  author: string;
-  category: string;
+  storyType: StoryType;
+  sourceTitle: string | null;
+  description: string | null;
+  ageRange: string | null;
+  language: string;
+  coverImageUrl: string | null;
+  status: StoryStatus;
+  pageCount: number;
+  currentPage: number;
+  pages?: StoryPage[];
+  createdAt: string;
+  updatedAt: string;
 };

@@ -7,7 +7,9 @@ data/*.db
 data/*.db-shm
 data/*.db-wal
 data/uploads/*
-!.gitkeep
+data/story-images/*
+!data/.gitkeep
+!data/story-images/.gitkeep
 *.log
 .DS_Store
 .vercel

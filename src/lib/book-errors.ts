@@ -1,7 +1,7 @@
 export class DuplicateBookError extends Error {
-  readonly existingId: number;
+  readonly existingId: string;
 
-  constructor(existingId: number) {
+  constructor(existingId: string) {
     super("This PDF is already in your library.");
     this.name = "DuplicateBookError";
     this.existingId = existingId;

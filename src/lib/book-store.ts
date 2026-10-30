@@ -1,18 +1,24 @@
-import fs from "node:fs";
+import { del, head } from "@vercel/blob";
 
 import { DuplicateBookError } from "./book-errors";
-import { deletePdf, isInsideUploads, savePdf } from "./storage";
-import { isCloudMode } from "./storage-mode";
+import { query } from "./db";
 import type { Book, BookStatus } from "./types";
 
-const COVER_COLORS = [
-  "#344d43",
-  "#3f6681",
-  "#8b6347",
-  "#655b83",
-  "#47736e",
-  "#6f7650",
-];
+interface BookRow {
+  id: string;
+  title: string;
+  author: string;
+  category: string;
+  description: string | null;
+  file_name: string;
+  file_path: string;
+  total_pages: number;
+  current_page: number;
+  status: BookStatus;
+  cover_color: string;
+  created_at: Date | string;
+  updated_at: Date | string;
+}
 
 export interface CreateBookInput {
   title: string;
@@ -20,152 +26,152 @@ export interface CreateBookInput {
   category: string;
   fileName: string;
   fileHash: string;
-  buffer?: Buffer;
-  fileUrl?: string;
+  fileUrl: string;
 }
 
-export async function listBooks(): Promise<Book[]> {
-  if (isCloudMode()) {
-    const { listCloudBooks } = await import("./cloud-store");
-    return listCloudBooks();
-  }
-
-  const { getDb, rowToBook } = await import("./db");
-  const rows = getDb()
-    .prepare("SELECT * FROM books ORDER BY updated_at DESC, id DESC")
-    .all() as Record<string, unknown>[];
-
-  return rows.map((row) => rowToBook(row) as Book);
+function iso(value: Date | string): string {
+  return value instanceof Date ? value.toISOString() : new Date(value).toISOString();
 }
 
-export async function getBook(id: number): Promise<Book | null> {
-  if (isCloudMode()) {
-    const { getCloudBook } = await import("./cloud-store");
-    return getCloudBook(id);
-  }
-
-  const { getDb, rowToBook } = await import("./db");
-  const row = getDb()
-    .prepare("SELECT * FROM books WHERE id = ?")
-    .get(id) as Record<string, unknown> | undefined;
-
-  return row ? (rowToBook(row) as Book) : null;
+function toBook(row: BookRow): Book {
+  return {
+    id: String(row.id),
+    title: row.title,
+    author: row.author,
+    category: row.category,
+    description: row.description,
+    fileName: row.file_name,
+    hasFile: Boolean(row.file_path),
+    fileUrl: row.file_path,
+    totalPages: Number(row.total_pages),
+    currentPage: Number(row.current_page),
+    status: row.status,
+    coverColor: row.cover_color,
+    createdAt: iso(row.created_at),
+    updatedAt: iso(row.updated_at),
+  };
 }
 
-export async function createBook(input: CreateBookInput): Promise<Book> {
-  if (isCloudMode()) {
-    if (!input.fileUrl) {
-      throw new Error("A Blob file URL is required in cloud mode.");
-    }
+export async function listBooks(userId: string): Promise<Book[]> {
+  const { rows } = await query<BookRow>(
+    `select * from public.books
+     where user_id = $1
+     order by updated_at desc, id desc`,
+    [userId]
+  );
 
-    const { createCloudBook } = await import("./cloud-store");
-    return createCloudBook({
-      title: input.title,
-      author: input.author,
-      category: input.category,
-      fileName: input.fileName,
-      fileUrl: input.fileUrl,
-      fileHash: input.fileHash,
-    });
+  return rows.map(toBook);
+}
+
+export async function getBook(
+  userId: string,
+  id: string
+): Promise<Book | null> {
+  const { rows } = await query<BookRow>(
+    "select * from public.books where id = $1 and user_id = $2",
+    [id, userId]
+  );
+
+  return rows[0] ? toBook(rows[0]) : null;
+}
+
+export async function createBook(
+  userId: string,
+  input: CreateBookInput
+): Promise<Book> {
+  const duplicate = await query<{ id: string }>(
+    "select id from public.books where user_id = $1 and file_hash = $2",
+    [userId, input.fileHash]
+  );
+
+  if (duplicate.rows[0]) {
+    throw new DuplicateBookError(duplicate.rows[0].id);
   }
 
-  if (!input.buffer) {
-    throw new Error("A file buffer is required in local mode.");
+  const blob = await head(input.fileUrl);
+  if (
+    blob.contentType !== "application/pdf" &&
+    !blob.pathname.toLowerCase().endsWith(".pdf")
+  ) {
+    throw new Error("The uploaded file is not a PDF.");
   }
-
-  const { getDb, rowToBook } = await import("./db");
-  const db = getDb();
-  const duplicate = db
-    .prepare("SELECT id FROM books WHERE file_hash = ?")
-    .get(input.fileHash) as { id: number } | undefined;
-
-  if (duplicate) {
-    throw new DuplicateBookError(Number(duplicate.id));
-  }
-
-  const stored = savePdf(input.buffer);
 
   try {
-    const result = db
-      .prepare(
-        `INSERT INTO books
-           (title, author, category, file_name, file_path, file_hash, status, cover_color)
-         VALUES (?, ?, ?, ?, ?, ?, 'not_started', ?)`
-      )
-      .run(
+    const { rows } = await query<BookRow>(
+      `insert into public.books
+         (user_id, title, author, category, file_name, file_path, file_hash)
+       values ($1, $2, $3, $4, $5, $6, $7)
+       returning *`,
+      [
+        userId,
         input.title,
         input.author,
         input.category,
         input.fileName,
-        stored.filePath,
+        input.fileUrl,
         input.fileHash,
-        COVER_COLORS[Math.floor(Math.random() * COVER_COLORS.length)]
-      );
+      ]
+    );
 
-    const row = db
-      .prepare("SELECT * FROM books WHERE id = ?")
-      .get(result.lastInsertRowid) as Record<string, unknown>;
-
-    return rowToBook(row) as Book;
+    return toBook(rows[0]);
   } catch (error) {
-    deletePdf(stored.filePath);
+    if (
+      typeof error === "object" &&
+      error !== null &&
+      "code" in error &&
+      (error as { code?: unknown }).code === "23505"
+    ) {
+      const existing = await query<{ id: string }>(
+        "select id from public.books where user_id = $1 and file_hash = $2",
+        [userId, input.fileHash]
+      );
+      if (existing.rows[0]) {
+        throw new DuplicateBookError(existing.rows[0].id);
+      }
+    }
     throw error;
   }
 }
 
 export async function updateBook(
-  id: number,
+  userId: string,
+  id: string,
   input: { title: string; author: string; category: string }
 ): Promise<Book | null> {
-  if (isCloudMode()) {
-    const { updateCloudBook } = await import("./cloud-store");
-    return updateCloudBook(id, input);
-  }
+  const { rows } = await query<BookRow>(
+    `update public.books
+     set title = $1, author = $2, category = $3, updated_at = now()
+     where id = $4 and user_id = $5
+     returning *`,
+    [input.title, input.author, input.category, id, userId]
+  );
 
-  const { getDb, rowToBook } = await import("./db");
-  const db = getDb();
-  const result = db
-    .prepare(
-      `UPDATE books
-       SET title = ?, author = ?, category = ?, updated_at = CURRENT_TIMESTAMP
-       WHERE id = ?`
-    )
-    .run(input.title, input.author, input.category, id);
-
-  if (result.changes === 0) return null;
-
-  const row = db
-    .prepare("SELECT * FROM books WHERE id = ?")
-    .get(id) as Record<string, unknown>;
-
-  return rowToBook(row) as Book;
+  return rows[0] ? toBook(rows[0]) : null;
 }
 
-export async function deleteBook(id: number): Promise<boolean> {
-  if (isCloudMode()) {
-    const { deleteCloudBook } = await import("./cloud-store");
-    return deleteCloudBook(id);
-  }
+export async function deleteBook(
+  userId: string,
+  id: string
+): Promise<boolean> {
+  const { rows } = await query<{ file_path: string }>(
+    "select file_path from public.books where id = $1 and user_id = $2",
+    [id, userId]
+  );
 
-  const { getDb } = await import("./db");
-  const db = getDb();
-  const row = db
-    .prepare("SELECT file_path FROM books WHERE id = ?")
-    .get(id) as { file_path?: string } | undefined;
+  if (!rows[0]) return false;
 
-  if (!row) return false;
-
-  db.prepare("DELETE FROM books WHERE id = ?").run(id);
-
-  if (row.file_path) {
-    deletePdf(row.file_path);
-  }
+  await query("delete from public.books where id = $1 and user_id = $2", [
+    id,
+    userId,
+  ]);
+  await del(rows[0].file_path).catch(() => {});
 
   return true;
 }
 
 export async function saveProgress(
-  id: number,
+  userId: string,
+  id: string,
   currentPage: number,
   totalPages?: number
 ): Promise<{
@@ -173,20 +179,14 @@ export async function saveProgress(
   totalPages: number;
   status: BookStatus;
 } | null> {
-  if (isCloudMode()) {
-    const { saveCloudProgress } = await import("./cloud-store");
-    return saveCloudProgress(id, currentPage, totalPages);
-  }
+  const existing = await query<{ total_pages: number }>(
+    "select total_pages from public.books where id = $1 and user_id = $2",
+    [id, userId]
+  );
 
-  const { getDb } = await import("./db");
-  const db = getDb();
-  const row = db
-    .prepare("SELECT id, total_pages FROM books WHERE id = ?")
-    .get(id) as { id: number; total_pages: number } | undefined;
+  if (!existing.rows[0]) return null;
 
-  if (!row) return null;
-
-  const effectiveTotal = totalPages ?? row.total_pages;
+  const effectiveTotal = totalPages ?? Number(existing.rows[0].total_pages);
   const page =
     effectiveTotal > 0 ? Math.min(currentPage, effectiveTotal) : currentPage;
   const status: BookStatus =
@@ -196,38 +196,25 @@ export async function saveProgress(
         ? "reading"
         : "not_started";
 
-  db.prepare(
-    `UPDATE books
-     SET current_page = ?, total_pages = ?, status = ?, updated_at = CURRENT_TIMESTAMP
-     WHERE id = ?`
-  ).run(page, effectiveTotal, status, id);
+  await query(
+    `update public.books
+     set current_page = $1, total_pages = $2, status = $3, updated_at = now()
+     where id = $4 and user_id = $5`,
+    [page, effectiveTotal, status, id, userId]
+  );
 
   return { currentPage: page, totalPages: effectiveTotal, status };
 }
 
 export async function getBookFile(
-  id: number
-): Promise<{ buffer: Buffer; fileName: string } | null> {
-  if (isCloudMode()) {
-    const { getCloudFile } = await import("./cloud-store");
-    return getCloudFile(id);
-  }
+  userId: string,
+  id: string
+): Promise<{ fileUrl: string; fileName: string } | null> {
+  const { rows } = await query<{ file_path: string; file_name: string }>(
+    "select file_path, file_name from public.books where id = $1 and user_id = $2",
+    [id, userId]
+  );
 
-  const { getDb } = await import("./db");
-  const row = getDb()
-    .prepare("SELECT file_path, file_name FROM books WHERE id = ?")
-    .get(id) as { file_path?: string; file_name?: string } | undefined;
-
-  if (
-    !row?.file_path ||
-    !isInsideUploads(row.file_path) ||
-    !fs.existsSync(row.file_path)
-  ) {
-    return null;
-  }
-
-  return {
-    buffer: fs.readFileSync(row.file_path),
-    fileName: row.file_name || "document.pdf",
-  };
+  if (!rows[0]) return null;
+  return { fileUrl: rows[0].file_path, fileName: rows[0].file_name };
 }

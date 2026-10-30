@@ -42,7 +42,7 @@ Requirements: Node.js 22.13+, a Postgres database, and a Vercel Blob token.
    npm.cmd install
    ```
 
-2. Create `.env.local` from `.env.example` and fill in:
+2. Create `.env.local` with the variables below. Required: `DATABASE_URL`, `ADMIN_DATABASE_URL`, `AUTH_SECRET`, `APP_URL`, `SETTINGS_ENCRYPTION_KEY`, and `BLOB_READ_WRITE_TOKEN`; the `AI_*` variables are optional.
 
    | Variable | Purpose |
    | --- | --- |
@@ -117,7 +117,7 @@ Requirements: Node.js 22.13+, a Postgres database, and a Vercel Blob token.
 - Password reset and invitation links are issued manually; there is no email delivery. An admin can generate a reset link from **Settings → Family** or with `npm.cmd run account:reset-link -- <email>`. Reset links are valid for 1 hour and work once.
 - Creating a new invite or reset link invalidates the previous unused link of the same purpose. Raw links are shown once; only SHA-256 token hashes are stored.
 - Grant the owner/admin account with `npm.cmd run admin:grant -- <email>`. Admin-only Settings sections (Family and AI story drafts) are re-checked on the server.
-- Sessions are 30-day HS256 JWTs in an HttpOnly, SameSite=Lax cookie, Secure in production. Every request compares the JWT session version with `users.session_version`; changing or resetting a password, or choosing **Sign out all devices**, increments it and invalidates older sessions.
+- Sessions are 30-day HS256 JWTs in an HttpOnly, SameSite=Lax cookie, Secure in production. Every authenticated data request compares the JWT session version with `users.session_version` in `getCurrentUser`; changing or resetting a password, or choosing **Sign out all devices**, increments it and invalidates older sessions.
 - Settings also provides reading preferences, data export, and account/content deletion.
 - Pass 2 bookmarks and favorites are still pending; saved pages, highlights, and notes are not implemented yet.
 
@@ -125,12 +125,12 @@ Requirements: Node.js 22.13+, a Postgres database, and a Vercel Blob token.
 
 - Enter the provider API key in **Settings → AI story drafts** as an administrator. It is write-only in the UI, encrypted at rest with `SETTINGS_ENCRYPTION_KEY`, and never committed to git.
 - DeepSeek and OpenAI presets are built in. Custom providers must use HTTPS and be listed in `AI_ALLOWED_HOSTS`; localhost and private IP hosts are blocked.
-- The daily limit is 10 drafts per user per UTC day by default and is configurable from 1 to 100 in admin Settings. Definitive provider failures that never produced a draft are refunded.
+- The daily limit is 10 drafts per user per UTC day by default and is configurable from 1 to 100 in admin Settings. `connection_failed` and `provider_rejected` failures are refunded; `timeout` and `invalid_response` failures consume the daily slot.
 - `AI_API_KEY` (with optional `AI_BASE_URL`/`AI_MODEL`) remains a server-side environment fallback when no key is saved in the database.
 
 ## Auth and data isolation
 
-- Passwords are bcrypt-hashed, and every database query and server action scopes rows by the signed-in user id.
+- Passwords are bcrypt-hashed. User-owned rows are scoped by the signed-in user id; admin-only queries such as family account listing and AI settings are explicitly authorized with `requireAdmin()`.
 - `src/middleware.ts` protects `/dashboard`, `/library`, `/recent`, `/bookmarks`, `/settings`, `/reader`, and `/story-time`; server routes still re-check auth.
 - v1 has no email delivery or email verification. Reset and invitation links must be shared manually.
 

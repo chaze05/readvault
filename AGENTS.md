@@ -27,12 +27,12 @@ ReadVault is a multi-user PDF library and family Story Time app. Accounts, metad
 
 ## Security and data rules
 
-- Every API route and server action must call `getSession()`/`getCurrentUser()` or `requireActiveUser()` and scope every query by `session.userId`.
+- Every API route and server action must call `getSession()`/`getCurrentUser()` or `requireActiveUser()`. User-owned queries must be scoped by `session.userId`; admin/global queries must be explicitly authorized with `requireAdmin()`.
 - Never accept a user id from the client.
 - Session-version rule: `getCurrentUser()` loads the user and rejects the JWT when `users.session_version` differs from the token's `sv`. Password changes, reset/invite completion, and Sign out all increment `session_version`. Preserve this check on every authenticated path.
 - Admin authorization: use `requireAdmin()` (active user with `is_admin`). Hiding admin UI is not authorization; Family and AI settings actions must re-check server-side. Accounts with `must_change_password` are not active until the password is changed.
 - Tokens: password reset links expire after 1 hour and invitation links after 24 hours. Both are single-use, stored only as SHA-256 hashes, and a new link invalidates the previous unused link for that purpose. Raw links are returned once and are never emailed; share them manually.
-- Secrets: `SETTINGS_ENCRYPTION_KEY` is a 32-byte base64 server-only key used to encrypt the AI provider key at rest. Never expose `AUTH_SECRET`, `BLOB_READ_WRITE_TOKEN`, `AI_API_KEY`, decrypted keys, reset/invite URLs, or tokens in the browser, logs, git, or chat. Keep `.env.local` and `.local-credentials.txt` uncommitted.
+- Secrets: `SETTINGS_ENCRYPTION_KEY` is a 32-byte base64 server-only key used to encrypt the AI provider key at rest. Never expose `AUTH_SECRET`, `BLOB_READ_WRITE_TOKEN`, `AI_API_KEY`, decrypted keys, or token ciphertext/hashes in the browser, logs, git, or chat. Reset/invite URLs may be shown once to the signed-in administrator in the Family UI (or printed by the reset CLI) for manual sharing; never send them to unintended recipients or record them in logs, git, or chat. Keep `.env.local` and `.local-credentials.txt` uncommitted.
 - AI provider URLs must use HTTPS; localhost/private IPs are blocked and custom hosts require `AI_ALLOWED_HOSTS`. Do not weaken `validateAiBaseUrl`.
 - AI usage: default 10 drafts per user per UTC day, configurable from 1 to 100 in admin Settings. Keep reservation/refund logic atomic.
 - Story/book images and PDFs are Blob URLs; validate ownership before attaching/deleting.

@@ -133,6 +133,25 @@ describe("createFamilyAccount", () => {
     expect(buildAccountTokenUrl).not.toHaveBeenCalled();
   });
 
+  it("removes the new account when invitation token creation fails", async () => {
+    vi.mocked(createAccountToken).mockRejectedValue(
+      new Error("token insert failed")
+    );
+
+    await expect(
+      createFamilyAccount({
+        email: "family@example.com",
+        method: "invite",
+        createdBy: "admin-1",
+      })
+    ).rejects.toThrow("token insert failed");
+
+    expect(vi.mocked(query)).toHaveBeenCalledTimes(2);
+    const [deleteSql, deleteParams] = vi.mocked(query).mock.calls[1];
+    expect(deleteSql).toContain("delete from public.users");
+    expect(deleteParams).toEqual(["user-1"]);
+  });
+
   it("rejects duplicate emails without creating a token", async () => {
     vi.mocked(query).mockRejectedValue(
       Object.assign(new Error("duplicate key"), { code: "23505" })

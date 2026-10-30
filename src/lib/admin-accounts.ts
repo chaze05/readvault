@@ -127,11 +127,20 @@ export async function createFamilyAccount({
   const account = mapFamilyAccount(row);
 
   if (method === "invite") {
-    const token = await createAccountToken({
-      userId: account.id,
-      purpose: "account_invite",
-      createdBy,
-    });
+    let token: Awaited<ReturnType<typeof createAccountToken>>;
+
+    try {
+      token = await createAccountToken({
+        userId: account.id,
+        purpose: "account_invite",
+        createdBy,
+      });
+    } catch (error) {
+      await query("delete from public.users where id = $1", [
+        account.id,
+      ]).catch(() => {});
+      throw error;
+    }
 
     return {
       method,

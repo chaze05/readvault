@@ -1,4 +1,4 @@
-import { del, head, list, put } from "@vercel/blob";
+import { del, get, head, put } from "@vercel/blob";
 
 import { DuplicateBookError } from "./book-errors";
 import type { Book, BookStatus } from "./types";
@@ -63,20 +63,21 @@ function toBook(record: CloudBookRecord): Book {
 }
 
 async function getIndex(): Promise<CloudIndex> {
-  const { blobs } = await list({ prefix: BOOKS_PATH, limit: 1 });
-  const indexBlob = blobs.find((blob) => blob.pathname === BOOKS_PATH);
+  try {
+    const indexBlob = await get(BOOKS_PATH, {
+      access: "public",
+      useCache: false,
+    });
 
-  if (!indexBlob) {
+    if (!indexBlob || indexBlob.statusCode !== 200) {
+      return { books: [] };
+    }
+
+    const data = (await new Response(indexBlob.stream).json()) as Partial<CloudIndex>;
+    return { books: Array.isArray(data.books) ? data.books : [] };
+  } catch {
     return { books: [] };
   }
-
-  const response = await fetch(indexBlob.url, { cache: "no-store" });
-  if (!response.ok) {
-    return { books: [] };
-  }
-
-  const data = (await response.json()) as Partial<CloudIndex>;
-  return { books: Array.isArray(data.books) ? data.books : [] };
 }
 
 async function saveIndex(index: CloudIndex): Promise<void> {

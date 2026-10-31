@@ -18,6 +18,7 @@ import {
 
 import { BookmarkButton } from "@/components/bookmarks/bookmark-button";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
+import { IosFullscreenHint } from "@/components/pwa/ios-fullscreen-hint";
 import {
   clampReaderZoom,
   getAutoImmersiveZoom,
@@ -881,6 +882,7 @@ export function PdfReader({
           >
             {Math.round(zoom * 100)}%
           </span>
+          <IosFullscreenHint buttonClassName={controlClass} />
           <button
             ref={fullscreenButtonRef}
             type="button"

@@ -20,11 +20,16 @@ import { BookmarkButton } from "@/components/bookmarks/bookmark-button";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
 import {
   clampReaderZoom,
+  getAutoImmersiveZoom,
   getCanvasMetrics,
   getPageSwipeDirection,
   isPhoneReader,
   READER_SWIPE_MAX_ZOOM,
 } from "@/lib/reader-gestures";
+import {
+  loadReaderBookmarks,
+  mergeBookmarksAfterLoad,
+} from "@/lib/reader-bookmarks";
 import type { BookmarkItem } from "@/lib/types";
 
 const PDF_CACHE = "readvault-pdfs-v2";
@@ -91,6 +96,7 @@ export function PdfReader({
   const [pageNumber, setPageNumber] = useState(Math.max(1, initialPage));
   const [totalPages, setTotalPages] = useState(initialTotalPages);
   const [bookmarks, setBookmarks] = useState<BookmarkItem[]>([]);
+  const [bookmarkError, setBookmarkError] = useState("");
   const [zoom, setZoom] = useState(initialZoom);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState("");
@@ -109,6 +115,7 @@ export function PdfReader({
   const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
   const autoImmersiveApplied = useRef(false);
   const restoreFocusOnClose = useRef(false);
+  const changedBookmarkPagesRef = useRef<Set<number>>(new Set());
   const gestureRef = useRef<TouchGesture | null>(null);
   const pinchFrameRef = useRef<number | null>(null);
   const pendingZoomRef = useRef<number | null>(null);
@@ -138,6 +145,7 @@ export function PdfReader({
     }
 
     autoImmersiveApplied.current = true;
+    setZoom((current) => getAutoImmersiveZoom(current, true));
     setImmersive(true);
   }, [isPhone, pdf, loading, error]);
 
@@ -306,15 +314,24 @@ export function PdfReader({
     let cancelled = false;
 
     async function loadBookmarks() {
-      try {
-        const response = await fetch(
-          `/api/bookmarks?bookId=${encodeURIComponent(bookId)}`,
-          { cache: "no-store" }
-        );
-        if (!response.ok) return;
-        const data = (await response.json()) as BookmarkItem[];
-        if (!cancelled && Array.isArray(data)) setBookmarks(data);
-      } catch {}
+      const result = await loadReaderBookmarks(
+        `/api/bookmarks?bookId=${encodeURIComponent(bookId)}`
+      );
+      if (cancelled) return;
+
+      if (!result.ok) {
+        setBookmarkError(result.error);
+        return;
+      }
+
+      setBookmarkError("");
+      setBookmarks((current) =>
+        mergeBookmarksAfterLoad(
+          result.bookmarks,
+          current,
+          changedBookmarkPagesRef.current
+        )
+      );
     }
 
     void loadBookmarks();
@@ -629,6 +646,7 @@ export function PdfReader({
     bookmark: BookmarkItem | null,
     changedPage: number
   ) {
+    changedBookmarkPagesRef.current.add(changedPage);
     setBookmarks((current) => {
       const remaining = current.filter(
         (item) =>
@@ -794,6 +812,18 @@ export function PdfReader({
             initialBookmarkId={pageBookmark?.id}
             onChange={handleBookmarkChange}
           />
+          {bookmarkError && (
+            <span
+              role="status"
+              className={`inline-flex items-center rounded-full px-2.5 py-1 text-[10px] font-semibold ${
+                immersive
+                  ? "bg-red-500/15 text-red-200"
+                  : "bg-red-50 text-red-700"
+              }`}
+            >
+              {bookmarkError}
+            </span>
+          )}
           <FavoriteButton
             kind="book"
             targetId={bookId}

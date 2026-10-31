@@ -159,10 +159,9 @@ export const bookmarkTargetSchema = z
 
 export const bookmarkNoteSchema = z.object({
   note: z
-    .string()
+    .string({ error: "Note is required." })
     .trim()
-    .max(500, "Note must be 500 characters or fewer.")
-    .default(""),
+    .max(500, "Note must be 500 characters or fewer."),
 });
 
 export const favoriteInputSchema = z.object({

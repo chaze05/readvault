@@ -121,6 +121,34 @@ describe("PATCH /api/bookmarks/[id]", () => {
     expect(updateBookmarkNote).not.toHaveBeenCalled();
   });
 
+  it("rejects a missing note instead of clearing it", async () => {
+    const response = await PATCH(patchRequest({}), context(bookmarkId));
+
+    expect(response.status).toBe(400);
+    expect(await response.json()).toEqual({ error: "Note is required." });
+    expectNoStore(response);
+    expect(updateBookmarkNote).not.toHaveBeenCalled();
+  });
+
+  it("rejects malformed JSON bodies", async () => {
+    const response = await PATCH(patchRequest("{not-json"), context(bookmarkId));
+
+    expect(response.status).toBe(400);
+    expectNoStore(response);
+    expect(updateBookmarkNote).not.toHaveBeenCalled();
+  });
+
+  it("clears the note when an empty note is explicit", async () => {
+    vi.mocked(updateBookmarkNote).mockResolvedValue({ ...bookmark, note: "" });
+
+    const response = await PATCH(patchRequest({ note: "" }), context(bookmarkId));
+
+    expect(response.status).toBe(200);
+    expect(await response.json()).toEqual({ ...bookmark, note: "" });
+    expectNoStore(response);
+    expect(updateBookmarkNote).toHaveBeenCalledWith(user.id, bookmarkId, "");
+  });
+
   it("updates the note and returns the bookmark", async () => {
     const response = await PATCH(patchRequest({ note: " Updated note " }), context(bookmarkId));
 

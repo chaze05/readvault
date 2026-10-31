@@ -329,6 +329,11 @@ describe("bookmarkNoteSchema", () => {
       bookmarkNoteSchema.safeParse({ note: "x".repeat(501) }).success
     ).toBe(false);
   });
+
+  it("requires an explicit note field", () => {
+    expect(bookmarkNoteSchema.safeParse({}).success).toBe(false);
+    expect(bookmarkNoteSchema.safeParse(null).success).toBe(false);
+  });
 });
 
 describe("favoriteInputSchema", () => {

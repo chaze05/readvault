@@ -65,7 +65,8 @@ export function ReadingForm({
       <fieldset className="m-0 border-0 p-0">
         <legend className="text-sm font-bold text-ink">PDF zoom</legend>
         <p className="mb-0 mt-1 text-xs leading-5 text-muted">
-          The zoom level a PDF opens at. You can still adjust it in the reader.
+          The zoom level a PDF opens at in the normal reader. Phone immersive
+          mode always starts at Fit width; you can still adjust zoom there.
         </p>
         <div className="mt-3 flex flex-wrap gap-2">
           {ZOOM_OPTIONS.map((value) => {

@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   clampReaderZoom,
+  getAutoImmersiveZoom,
   getCanvasMetrics,
   getPageSwipeDirection,
   isPhoneReader,
@@ -78,6 +79,17 @@ describe("clampReaderZoom", () => {
 
   it("keeps values inside the range", () => {
     expect(clampReaderZoom(1.25)).toBe(1.25);
+  });
+});
+
+describe("getAutoImmersiveZoom", () => {
+  it("forces fit width when auto-entering the phone reader", () => {
+    expect(getAutoImmersiveZoom(1.25, true)).toBe(1);
+    expect(getAutoImmersiveZoom(1.5, true)).toBe(1);
+  });
+
+  it("keeps the saved zoom when not auto-entering the phone reader", () => {
+    expect(getAutoImmersiveZoom(1.25, false)).toBe(1.25);
   });
 });
 

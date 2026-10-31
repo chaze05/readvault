@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import {
   ArrowLeft,
@@ -16,6 +16,10 @@ import {
 
 import { BookmarkButton } from "@/components/bookmarks/bookmark-button";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
+import {
+  loadReaderBookmarks,
+  mergeBookmarksAfterLoad,
+} from "@/lib/reader-bookmarks";
 import type { StoryTextSize } from "@/lib/preferences";
 import type { BookmarkItem, Story } from "@/lib/types";
 
@@ -48,6 +52,8 @@ export function StoryReader({
   const [speaking, setSpeaking] = useState(false);
   const [curtainVisible, setCurtainVisible] = useState(true);
   const [bookmarks, setBookmarks] = useState<BookmarkItem[]>([]);
+  const [bookmarkError, setBookmarkError] = useState("");
+  const changedBookmarkPagesRef = useRef<Set<number>>(new Set());
   const pages = story.pages || [];
   const page = pages[pageIndex];
   const storageKey = `readvault-story-progress-${storyId}`;
@@ -61,15 +67,24 @@ export function StoryReader({
     let cancelled = false;
 
     async function loadBookmarks() {
-      try {
-        const response = await fetch(
-          `/api/bookmarks?storyId=${encodeURIComponent(storyId)}`,
-          { cache: "no-store" }
-        );
-        if (!response.ok) return;
-        const data = (await response.json()) as BookmarkItem[];
-        if (!cancelled && Array.isArray(data)) setBookmarks(data);
-      } catch {}
+      const result = await loadReaderBookmarks(
+        `/api/bookmarks?storyId=${encodeURIComponent(storyId)}`
+      );
+      if (cancelled) return;
+
+      if (!result.ok) {
+        setBookmarkError(result.error);
+        return;
+      }
+
+      setBookmarkError("");
+      setBookmarks((current) =>
+        mergeBookmarksAfterLoad(
+          result.bookmarks,
+          current,
+          changedBookmarkPagesRef.current
+        )
+      );
     }
 
     void loadBookmarks();
@@ -133,6 +148,7 @@ export function StoryReader({
     bookmark: BookmarkItem | null,
     changedPage: number
   ) {
+    changedBookmarkPagesRef.current.add(changedPage);
     setBookmarks((current) => {
       const remaining = current.filter(
         (item) =>
@@ -232,6 +248,15 @@ export function StoryReader({
             </Link>
           </div>
         </header>
+
+        {bookmarkError && (
+          <p
+            role="status"
+            className="m-0 border-b border-amber-200 bg-amber-50 px-4 py-1.5 text-center text-[11px] font-semibold text-amber-800"
+          >
+            {bookmarkError}
+          </p>
+        )}
 
         <div className="mx-auto flex min-h-[calc(100vh-60px)] max-w-4xl flex-col items-center justify-center px-4 py-8">
           <div className="mb-4 w-full max-w-2xl text-center">

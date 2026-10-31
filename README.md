@@ -130,6 +130,7 @@ Requirements: Node.js 22.13+, a Postgres database, and a Vercel Blob token.
 - Edit or clear a bookmark note (500 characters max) on **Bookmarks → Pages**. Bookmark links open `/reader/<id>?page=<n>` or `/story-time/<id>?page=<n>`; the page parameter is validated and clamped to the document.
 - Favorite whole books and stories with the heart on Library/Story Time cards and in both readers. Favorites appear under **Bookmarks → Favorites**.
 - On phones (coarse pointer, short viewport side 700px or less), PDFs open in an immersive full-viewport reader. It uses fit-width high-DPI rendering, scrolls tall pages vertically, turns one page on a horizontal swipe at fit, and supports pinch or button zoom from 0.5× to 3×. When zoomed beyond 1.05×, horizontal drags pan instead of paging; **Fit** restores swipe paging. Closing the reader returns to the normal view at the same page.
+- Phone auto-immersive mode always starts at **Fit** width, even when the saved PDF zoom preference is 75%, 125%, or 150%, so the page never overflows horizontally or blocks swipe paging on open. The saved zoom still applies in the normal desktop reader.
 - iPhone Safari may keep its own browser chrome even in immersive mode; Add to Home Screen for a fully chrome-free view. Phase 2 adds no environment variables.
 
 ## AI story drafts

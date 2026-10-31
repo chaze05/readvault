@@ -40,6 +40,13 @@ export function clampReaderZoom(value: number): number {
   return Math.min(MAX_ZOOM, Math.max(MIN_ZOOM, value));
 }
 
+export function getAutoImmersiveZoom(
+  savedZoom: number,
+  autoEnteringOnPhone: boolean
+): number {
+  return autoEnteringOnPhone ? 1 : clampReaderZoom(savedZoom);
+}
+
 export function getPageSwipeDirection({
   deltaX,
   deltaY,

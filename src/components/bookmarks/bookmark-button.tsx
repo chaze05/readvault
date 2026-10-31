@@ -6,6 +6,37 @@ import { Bookmark, ExternalLink, Trash2 } from "lucide-react";
 
 import type { BookmarkItem, BookmarkKind } from "@/lib/types";
 
+const POPOVER_MARGIN = 8;
+const POPOVER_WIDTH = 192;
+
+type PopoverPosition = {
+  left: number;
+  top: number;
+  width: number;
+};
+
+function getPopoverPosition(
+  button: HTMLButtonElement,
+  height: number
+): PopoverPosition {
+  const rect = button.getBoundingClientRect();
+  const width = Math.min(
+    POPOVER_WIDTH,
+    Math.max(0, window.innerWidth - POPOVER_MARGIN * 2)
+  );
+  const left = Math.min(
+    Math.max(rect.left, POPOVER_MARGIN),
+    Math.max(POPOVER_MARGIN, window.innerWidth - width - POPOVER_MARGIN)
+  );
+  const below = rect.bottom + POPOVER_MARGIN;
+  const top =
+    below + height <= window.innerHeight - POPOVER_MARGIN
+      ? below
+      : Math.max(POPOVER_MARGIN, rect.top - height - POPOVER_MARGIN);
+
+  return { left, top, width };
+}
+
 export function BookmarkButton({
   kind,
   targetId,
@@ -27,10 +58,14 @@ export function BookmarkButton({
   const [bookmarkId, setBookmarkId] = useState(initialBookmarkId);
   const [pending, setPending] = useState(false);
   const [menuOpen, setMenuOpen] = useState(false);
+  const [menuPosition, setMenuPosition] = useState<PopoverPosition | null>(
+    null
+  );
   const [notice, setNotice] = useState("");
   const [error, setError] = useState("");
   const wrapperRef = useRef<HTMLDivElement>(null);
   const buttonRef = useRef<HTMLButtonElement>(null);
+  const menuRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setBookmarked(initialBookmarked);
@@ -49,6 +84,36 @@ export function BookmarkButton({
     const timer = window.setTimeout(() => setError(""), 4000);
     return () => window.clearTimeout(timer);
   }, [error]);
+
+  useEffect(() => {
+    if (!menuOpen) return;
+
+    function reposition() {
+      const button = buttonRef.current;
+      if (!button) return;
+      const next = getPopoverPosition(
+        button,
+        menuRef.current?.offsetHeight ?? 96
+      );
+      setMenuPosition((current) =>
+        current &&
+        current.left === next.left &&
+        current.top === next.top &&
+        current.width === next.width
+          ? current
+          : next
+      );
+    }
+
+    reposition();
+    window.addEventListener("resize", reposition);
+    window.addEventListener("scroll", reposition, true);
+
+    return () => {
+      window.removeEventListener("resize", reposition);
+      window.removeEventListener("scroll", reposition, true);
+    };
+  }, [menuOpen]);
 
   useEffect(() => {
     if (!menuOpen) return;
@@ -166,16 +231,23 @@ export function BookmarkButton({
     }
   }
 
+  function toggleMenu() {
+    if (menuOpen) {
+      setMenuOpen(false);
+      return;
+    }
+
+    const button = buttonRef.current;
+    if (button) setMenuPosition(getPopoverPosition(button, 96));
+    setMenuOpen(true);
+  }
+
   return (
     <div ref={wrapperRef} className={`relative ${className ?? ""}`}>
       <button
         ref={buttonRef}
         type="button"
-        onClick={
-          bookmarked
-            ? () => setMenuOpen((value) => !value)
-            : () => void save()
-        }
+        onClick={bookmarked ? toggleMenu : () => void save()}
         disabled={pending}
         aria-label={
           bookmarked
@@ -194,11 +266,17 @@ export function BookmarkButton({
         <Bookmark size={16} fill={bookmarked ? "currentColor" : "none"} />
       </button>
 
-      {menuOpen && (
+      {menuOpen && menuPosition && (
         <div
+          ref={menuRef}
           role="menu"
           aria-label="Bookmark options"
-          className="absolute right-0 top-full z-40 mt-2 w-48 overflow-hidden rounded-xl border border-line bg-white p-1 text-left shadow-soft"
+          style={{
+            left: menuPosition.left,
+            top: menuPosition.top,
+            width: menuPosition.width,
+          }}
+          className="fixed z-40 max-h-[calc(100dvh-1rem)] overflow-y-auto rounded-xl border border-line bg-white p-1 text-left shadow-soft"
         >
           <Link
             role="menuitem"

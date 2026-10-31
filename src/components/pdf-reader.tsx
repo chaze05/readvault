@@ -25,6 +25,14 @@ import {
 import type { BookmarkItem } from "@/lib/types";
 
 const PDF_CACHE = "readvault-pdfs-v2";
+const FOCUSABLE_SELECTOR =
+  'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
+function getFocusableElements(root: HTMLElement) {
+  return Array.from(
+    root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
+  ).filter((element) => element.getClientRects().length > 0);
+}
 
 type OfflineState = "checking" | "ready" | "online";
 
@@ -63,7 +71,10 @@ export function PdfReader({
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const shellRef = useRef<HTMLDivElement>(null);
+  const closeButtonRef = useRef<HTMLButtonElement>(null);
+  const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
   const autoImmersiveApplied = useRef(false);
+  const restoreFocusOnClose = useRef(false);
 
   useEffect(() => {
     const query = window.matchMedia("(pointer: coarse)");
@@ -106,6 +117,109 @@ export function PdfReader({
       body.style.overflow = previousOverflow;
       body.style.overscrollBehavior = previousOverscroll;
     };
+  }, [immersive]);
+
+  useEffect(() => {
+    if (!immersive) return;
+
+    const overlay = shellRef.current;
+    if (!overlay) return;
+
+    const hidden = new Map<
+      HTMLElement,
+      { ariaHidden: string | null; hadInert: boolean }
+    >();
+
+    function hide(element: HTMLElement) {
+      if (element === overlay || hidden.has(element)) return;
+      hidden.set(element, {
+        ariaHidden: element.getAttribute("aria-hidden"),
+        hadInert: element.hasAttribute("inert"),
+      });
+      element.setAttribute("inert", "");
+      element.setAttribute("aria-hidden", "true");
+    }
+
+    let node: HTMLElement = overlay;
+    while (node.parentElement && node.parentElement !== document.body) {
+      const parent = node.parentElement;
+      for (const sibling of Array.from(parent.children)) {
+        if (sibling !== node && sibling instanceof HTMLElement) {
+          hide(sibling);
+        }
+      }
+      node = parent;
+    }
+
+    for (const sibling of Array.from(document.body.children)) {
+      if (sibling !== node && sibling instanceof HTMLElement) {
+        hide(sibling);
+      }
+    }
+
+    return () => {
+      for (const [element, state] of hidden) {
+        if (state.hadInert) element.setAttribute("inert", "");
+        else element.removeAttribute("inert");
+        if (state.ariaHidden === null) element.removeAttribute("aria-hidden");
+        else element.setAttribute("aria-hidden", state.ariaHidden);
+      }
+    };
+  }, [immersive]);
+
+  useEffect(() => {
+    if (!immersive) {
+      if (!restoreFocusOnClose.current) return;
+      restoreFocusOnClose.current = false;
+      const frame = window.requestAnimationFrame(() =>
+        fullscreenButtonRef.current?.focus()
+      );
+      return () => window.cancelAnimationFrame(frame);
+    }
+
+    const frame = window.requestAnimationFrame(() =>
+      closeButtonRef.current?.focus()
+    );
+    return () => window.cancelAnimationFrame(frame);
+  }, [immersive]);
+
+  useEffect(() => {
+    if (!immersive) return;
+
+    function onKeyDown(event: KeyboardEvent) {
+      if (event.key !== "Tab") return;
+
+      const overlay = shellRef.current;
+      if (!overlay) return;
+
+      const focusable = getFocusableElements(overlay);
+      if (focusable.length === 0) {
+        event.preventDefault();
+        overlay.focus();
+        return;
+      }
+
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+
+      if (!(active instanceof HTMLElement) || !overlay.contains(active)) {
+        event.preventDefault();
+        (event.shiftKey ? last : first).focus();
+        return;
+      }
+
+      if (!event.shiftKey && active === last) {
+        event.preventDefault();
+        first.focus();
+      } else if (event.shiftKey && active === first) {
+        event.preventDefault();
+        last.focus();
+      }
+    }
+
+    document.addEventListener("keydown", onKeyDown);
+    return () => document.removeEventListener("keydown", onKeyDown);
   }, [immersive]);
 
   useEffect(() => {
@@ -402,6 +516,7 @@ export function PdfReader({
         // Continue closing the overlay even if the browser rejects the exit.
       }
     }
+    restoreFocusOnClose.current = true;
     setImmersive(false);
   }
 
@@ -429,6 +544,10 @@ export function PdfReader({
   return (
     <div
       ref={shellRef}
+      role={immersive ? "dialog" : undefined}
+      aria-modal={immersive ? true : undefined}
+      aria-label={immersive ? `${title} reader` : undefined}
+      tabIndex={immersive ? -1 : undefined}
       className={
         immersive
           ? "reader-immersive fixed inset-0 z-50 flex h-[100dvh] flex-col overflow-hidden text-white"
@@ -466,6 +585,7 @@ export function PdfReader({
         <div className="flex items-center gap-1.5">
           {immersive && (
             <button
+              ref={closeButtonRef}
               type="button"
               onClick={() => void closeImmersive()}
               className={controlClass}
@@ -577,6 +697,7 @@ export function PdfReader({
             {Math.round(zoom * 100)}%
           </span>
           <button
+            ref={fullscreenButtonRef}
             type="button"
             onClick={() => void toggleFullscreen()}
             className={controlClass}

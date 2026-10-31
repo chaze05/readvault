@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   clampReaderZoom,
   getCanvasMetrics,
+  getPageSwipeDirection,
   isPhoneReader,
 } from "./reader-gestures";
 
@@ -77,5 +78,79 @@ describe("clampReaderZoom", () => {
 
   it("keeps values inside the range", () => {
     expect(clampReaderZoom(1.25)).toBe(1.25);
+  });
+});
+
+describe("getPageSwipeDirection", () => {
+  it("turns to the next page on a left swipe", () => {
+    expect(
+      getPageSwipeDirection({ deltaX: -80, deltaY: 20, zoom: 1, fingers: 1 })
+    ).toBe("next");
+  });
+
+  it("turns to the previous page on a right swipe", () => {
+    expect(
+      getPageSwipeDirection({ deltaX: 80, deltaY: 20, zoom: 1, fingers: 1 })
+    ).toBe("previous");
+  });
+
+  it("does not page while zoomed in", () => {
+    expect(
+      getPageSwipeDirection({ deltaX: -80, deltaY: 20, zoom: 1.2, fingers: 1 })
+    ).toBeNull();
+  });
+
+  it("does not page on a vertical swipe", () => {
+    expect(
+      getPageSwipeDirection({ deltaX: 0, deltaY: 100, zoom: 1, fingers: 1 })
+    ).toBeNull();
+  });
+
+  it("does not page with two fingers", () => {
+    expect(
+      getPageSwipeDirection({ deltaX: -80, deltaY: 20, zoom: 1, fingers: 2 })
+    ).toBeNull();
+  });
+
+  it("does not page without a finger", () => {
+    expect(
+      getPageSwipeDirection({ deltaX: -80, deltaY: 20, zoom: 1, fingers: 0 })
+    ).toBeNull();
+  });
+
+  it("accepts a swipe exactly at the 50px threshold", () => {
+    expect(
+      getPageSwipeDirection({ deltaX: -50, deltaY: 0, zoom: 1, fingers: 1 })
+    ).toBe("next");
+  });
+
+  it("ignores a swipe just under the 50px threshold", () => {
+    expect(
+      getPageSwipeDirection({ deltaX: -49, deltaY: 0, zoom: 1, fingers: 1 })
+    ).toBeNull();
+  });
+
+  it("accepts a swipe exactly at the 1.5 horizontal ratio", () => {
+    expect(
+      getPageSwipeDirection({ deltaX: -75, deltaY: 50, zoom: 1, fingers: 1 })
+    ).toBe("next");
+  });
+
+  it("ignores a diagonal swipe under the 1.5 horizontal ratio", () => {
+    expect(
+      getPageSwipeDirection({ deltaX: -74, deltaY: 50, zoom: 1, fingers: 1 })
+    ).toBeNull();
+  });
+
+  it("allows swiping at the 1.05 zoom boundary", () => {
+    expect(
+      getPageSwipeDirection({ deltaX: 80, deltaY: 20, zoom: 1.05, fingers: 1 })
+    ).toBe("previous");
+  });
+
+  it("does not page just above the 1.05 zoom boundary", () => {
+    expect(
+      getPageSwipeDirection({ deltaX: 80, deltaY: 20, zoom: 1.06, fingers: 1 })
+    ).toBeNull();
   });
 });

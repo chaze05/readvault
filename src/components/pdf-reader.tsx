@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import type { TouchEvent as ReactTouchEvent } from "react";
 import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import {
   BookOpen,
@@ -20,18 +21,51 @@ import { FavoriteButton } from "@/components/favorites/favorite-button";
 import {
   clampReaderZoom,
   getCanvasMetrics,
+  getPageSwipeDirection,
   isPhoneReader,
+  READER_SWIPE_MAX_ZOOM,
 } from "@/lib/reader-gestures";
 import type { BookmarkItem } from "@/lib/types";
 
 const PDF_CACHE = "readvault-pdfs-v2";
 const FOCUSABLE_SELECTOR =
   'a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])';
+const CONTROL_SELECTOR =
+  'a[href], button, input, select, textarea, [role="button"], [contenteditable="true"]';
+
+type TouchGesture = {
+  mode: "swipe" | "pinch";
+  onControl: boolean;
+  startX: number;
+  startY: number;
+  lastX: number;
+  lastY: number;
+  startZoom: number;
+  startDistance: number;
+};
 
 function getFocusableElements(root: HTMLElement) {
   return Array.from(
     root.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)
   ).filter((element) => element.getClientRects().length > 0);
+}
+
+function isControlTarget(target: EventTarget | null) {
+  return (
+    target instanceof Element && Boolean(target.closest(CONTROL_SELECTOR))
+  );
+}
+
+function getTouchDistance(
+  touches: ReactTouchEvent<HTMLDivElement>["touches"]
+) {
+  const first = touches[0];
+  const second = touches[1];
+  if (!first || !second) return 0;
+  return Math.hypot(
+    first.clientX - second.clientX,
+    first.clientY - second.clientY
+  );
 }
 
 type OfflineState = "checking" | "ready" | "online";
@@ -75,6 +109,9 @@ export function PdfReader({
   const fullscreenButtonRef = useRef<HTMLButtonElement>(null);
   const autoImmersiveApplied = useRef(false);
   const restoreFocusOnClose = useRef(false);
+  const gestureRef = useRef<TouchGesture | null>(null);
+  const pinchFrameRef = useRef<number | null>(null);
+  const pendingZoomRef = useRef<number | null>(null);
 
   useEffect(() => {
     const query = window.matchMedia("(pointer: coarse)");
@@ -103,6 +140,21 @@ export function PdfReader({
     autoImmersiveApplied.current = true;
     setImmersive(true);
   }, [isPhone, pdf, loading, error]);
+
+  useEffect(() => {
+    return () => {
+      if (pinchFrameRef.current !== null) {
+        window.cancelAnimationFrame(pinchFrameRef.current);
+      }
+    };
+  }, []);
+
+  useEffect(() => {
+    const element = containerRef.current;
+    if (!element) return;
+    element.scrollTop = 0;
+    element.scrollLeft = 0;
+  }, [pageNumber]);
 
   useEffect(() => {
     if (!immersive) return;
@@ -471,6 +523,103 @@ export function PdfReader({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [totalPages]);
 
+  function handleTouchStart(event: ReactTouchEvent<HTMLDivElement>) {
+    if (!immersive) return;
+
+    const first = event.touches[0];
+    if (!first) return;
+
+    if (event.touches.length >= 2) {
+      gestureRef.current = {
+        mode: "pinch",
+        onControl:
+          gestureRef.current?.onControl ?? isControlTarget(event.target),
+        startX: first.clientX,
+        startY: first.clientY,
+        lastX: first.clientX,
+        lastY: first.clientY,
+        startZoom: zoom,
+        startDistance: getTouchDistance(event.touches),
+      };
+      return;
+    }
+
+    gestureRef.current = {
+      mode: "swipe",
+      onControl: isControlTarget(event.target),
+      startX: first.clientX,
+      startY: first.clientY,
+      lastX: first.clientX,
+      lastY: first.clientY,
+      startZoom: zoom,
+      startDistance: 0,
+    };
+  }
+
+  function handleTouchMove(event: ReactTouchEvent<HTMLDivElement>) {
+    const gesture = gestureRef.current;
+    if (!gesture || gesture.onControl) return;
+
+    const first = event.touches[0];
+    if (!first) return;
+
+    if (gesture.mode === "pinch" || event.touches.length >= 2) {
+      if (gesture.mode !== "pinch") {
+        gesture.mode = "pinch";
+        gesture.startZoom = zoom;
+        gesture.startDistance = getTouchDistance(event.touches);
+        return;
+      }
+
+      const distance = getTouchDistance(event.touches);
+      if (gesture.startDistance <= 0 || distance <= 0) return;
+
+      pendingZoomRef.current = clampReaderZoom(
+        gesture.startZoom * (distance / gesture.startDistance)
+      );
+      if (pinchFrameRef.current === null) {
+        pinchFrameRef.current = window.requestAnimationFrame(() => {
+          pinchFrameRef.current = null;
+          const pending = pendingZoomRef.current;
+          pendingZoomRef.current = null;
+          if (pending !== null) setZoom(Number(pending.toFixed(3)));
+        });
+      }
+      return;
+    }
+
+    gesture.lastX = first.clientX;
+    gesture.lastY = first.clientY;
+  }
+
+  function handleTouchEnd(event: ReactTouchEvent<HTMLDivElement>) {
+    const gesture = gestureRef.current;
+    gestureRef.current = null;
+
+    if (!gesture || !immersive || gesture.onControl || gesture.mode !== "swipe") {
+      return;
+    }
+
+    const touch = event.changedTouches[0];
+    const direction = getPageSwipeDirection({
+      deltaX: (touch?.clientX ?? gesture.lastX) - gesture.startX,
+      deltaY: (touch?.clientY ?? gesture.lastY) - gesture.startY,
+      zoom: gesture.startZoom,
+      fingers: 1,
+    });
+
+    if (direction === "next") {
+      goToPage(pageNumber + 1);
+    } else if (direction === "previous") {
+      goToPage(pageNumber - 1);
+    }
+  }
+
+  function handleTouchCancel() {
+    gestureRef.current = null;
+    pendingZoomRef.current = null;
+  }
+
   function goToPage(value: number) {
     const max = totalPages || 1;
     setPageNumber(Math.min(Math.max(1, Math.round(value)), max));
@@ -540,6 +689,12 @@ export function PdfReader({
     : offlineState === "ready"
       ? "bg-brand-soft text-brand"
       : "bg-paper text-muted";
+
+  const touchAction = immersive
+    ? zoom > READER_SWIPE_MAX_ZOOM
+      ? "pan-x pan-y"
+      : "pan-y"
+    : undefined;
 
   return (
     <div
@@ -710,6 +865,11 @@ export function PdfReader({
 
       <div
         ref={containerRef}
+        onTouchStart={handleTouchStart}
+        onTouchMove={handleTouchMove}
+        onTouchEnd={handleTouchEnd}
+        onTouchCancel={handleTouchCancel}
+        style={touchAction ? { touchAction } : undefined}
         className={
           immersive
             ? "reader-immersive-viewport"
@@ -733,7 +893,7 @@ export function PdfReader({
         )}
 
         <canvas
-          key={`${pageNumber}-${zoom}`}
+          key={pageNumber}
           ref={canvasRef}
           className={`reader-page-enter mx-auto block shadow-lg ${loading || error ? "hidden" : ""}`}
         />

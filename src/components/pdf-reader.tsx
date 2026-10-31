@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
-import type { PDFDocumentProxy } from "pdfjs-dist";
+import type { PDFDocumentProxy, RenderTask } from "pdfjs-dist";
 import {
   BookOpen,
   CheckCircle2,
@@ -12,10 +12,16 @@ import {
   Minus,
   Plus,
   WifiOff,
+  X,
 } from "lucide-react";
 
 import { BookmarkButton } from "@/components/bookmarks/bookmark-button";
 import { FavoriteButton } from "@/components/favorites/favorite-button";
+import {
+  clampReaderZoom,
+  getCanvasMetrics,
+  isPhoneReader,
+} from "@/lib/reader-gestures";
 import type { BookmarkItem } from "@/lib/types";
 
 const PDF_CACHE = "readvault-pdfs-v2";
@@ -52,21 +58,83 @@ export function PdfReader({
   const [containerWidth, setContainerWidth] = useState(0);
   const [curtainLeaving, setCurtainLeaving] = useState(false);
   const [curtainVisible, setCurtainVisible] = useState(true);
+  const [isPhone, setIsPhone] = useState(false);
+  const [immersive, setImmersive] = useState(false);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const containerRef = useRef<HTMLDivElement>(null);
+  const shellRef = useRef<HTMLDivElement>(null);
+  const autoImmersiveApplied = useRef(false);
+
+  useEffect(() => {
+    const query = window.matchMedia("(pointer: coarse)");
+
+    function updatePhone() {
+      setIsPhone(
+        isPhoneReader(window.innerWidth, window.innerHeight, query.matches)
+      );
+    }
+
+    updatePhone();
+    window.addEventListener("resize", updatePhone);
+    window.addEventListener("orientationchange", updatePhone);
+
+    return () => {
+      window.removeEventListener("resize", updatePhone);
+      window.removeEventListener("orientationchange", updatePhone);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!isPhone || !pdf || loading || error || autoImmersiveApplied.current) {
+      return;
+    }
+
+    autoImmersiveApplied.current = true;
+    setImmersive(true);
+  }, [isPhone, pdf, loading, error]);
+
+  useEffect(() => {
+    if (!immersive) return;
+
+    const { body } = document;
+    const previousOverflow = body.style.overflow;
+    const previousOverscroll = body.style.overscrollBehavior;
+    body.style.overflow = "hidden";
+    body.style.overscrollBehavior = "none";
+
+    return () => {
+      body.style.overflow = previousOverflow;
+      body.style.overscrollBehavior = previousOverscroll;
+    };
+  }, [immersive]);
 
   useEffect(() => {
     const element = containerRef.current;
     if (!element) return;
+    const target = element;
 
-    const observer = new ResizeObserver((entries) => {
-      setContainerWidth(entries[0]?.contentRect.width ?? element.clientWidth);
-    });
-    observer.observe(element);
-    setContainerWidth(element.clientWidth);
+    function measure() {
+      const styles = window.getComputedStyle(target);
+      const horizontalPadding =
+        parseFloat(styles.paddingLeft) + parseFloat(styles.paddingRight);
+      setContainerWidth(Math.max(target.clientWidth - horizontalPadding, 0));
+    }
 
-    return () => observer.disconnect();
-  }, []);
+    const observer = new ResizeObserver(measure);
+    observer.observe(target);
+    measure();
+    const frame = window.requestAnimationFrame(measure);
+
+    window.addEventListener("resize", measure);
+    window.addEventListener("orientationchange", measure);
+
+    return () => {
+      observer.disconnect();
+      window.cancelAnimationFrame(frame);
+      window.removeEventListener("resize", measure);
+      window.removeEventListener("orientationchange", measure);
+    };
+  }, [immersive]);
 
   useEffect(() => {
     let cancelled = false;
@@ -198,9 +266,11 @@ export function PdfReader({
   }, [loading, error]);
 
   useEffect(() => {
-    if (!pdf) return;
+    if (!pdf || containerWidth <= 0) return;
 
     let cancelled = false;
+    let renderTask: RenderTask | null = null;
+    let renderFinished = false;
 
     async function render() {
       try {
@@ -208,20 +278,36 @@ export function PdfReader({
         if (cancelled) return;
 
         const base = page.getViewport({ scale: 1 });
-        const availableWidth = Math.max(containerWidth - 32, 280);
-        const fitScale = Math.min(2, Math.max(0.4, availableWidth / base.width));
+        const availableWidth = Math.max(1, Math.floor(containerWidth));
+        const fitScale = availableWidth / base.width;
         const viewport = page.getViewport({ scale: fitScale * zoom });
         const canvas = canvasRef.current;
         if (!canvas) return;
 
-        canvas.width = Math.floor(viewport.width);
-        canvas.height = Math.floor(viewport.height);
-        canvas.style.width = `${Math.floor(viewport.width)}px`;
-        canvas.style.height = `${Math.floor(viewport.height)}px`;
+        const cssHeight = Math.floor(viewport.height);
+        const metrics = getCanvasMetrics(
+          Math.floor(viewport.width),
+          window.devicePixelRatio
+        );
 
-        await page.render({ canvas, viewport }).promise;
+        canvas.width = metrics.backingWidth;
+        canvas.height = Math.floor(cssHeight * metrics.pixelRatio);
+        canvas.style.width = `${metrics.cssWidth}px`;
+        canvas.style.height = `${cssHeight}px`;
+
+        renderTask = page.render({
+          canvas,
+          viewport,
+          transform:
+            metrics.pixelRatio === 1
+              ? undefined
+              : [metrics.pixelRatio, 0, 0, metrics.pixelRatio, 0, 0],
+        });
+        await renderTask.promise;
       } catch {
         if (!cancelled) setError("Could not render this page.");
+      } finally {
+        renderFinished = true;
       }
     }
 
@@ -229,6 +315,7 @@ export function PdfReader({
 
     return () => {
       cancelled = true;
+      if (!renderFinished) renderTask?.cancel();
     };
   }, [pdf, pageNumber, zoom, containerWidth]);
 
@@ -293,19 +380,61 @@ export function PdfReader({
   );
 
   async function toggleFullscreen() {
-    if (!containerRef.current) return;
-    if (document.fullscreenElement) {
-      await document.exitFullscreen?.();
-    } else {
-      await containerRef.current.requestFullscreen?.();
+    const target = immersive ? shellRef.current : containerRef.current;
+    if (!target) return;
+
+    try {
+      if (document.fullscreenElement) {
+        await document.exitFullscreen();
+      } else if (target.requestFullscreen) {
+        await target.requestFullscreen();
+      }
+    } catch {
+      // Native fullscreen can be blocked by the browser; the overlay remains.
     }
   }
 
-  const controlClass =
-    "inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-line bg-white px-2.5 text-xs font-semibold text-muted transition hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-40";
+  async function closeImmersive() {
+    if (document.fullscreenElement) {
+      try {
+        await document.exitFullscreen();
+      } catch {
+        // Continue closing the overlay even if the browser rejects the exit.
+      }
+    }
+    setImmersive(false);
+  }
+
+  const controlClass = immersive
+    ? "inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-white/15 bg-white/10 px-2.5 text-xs font-semibold text-white/80 transition hover:border-white/40 hover:text-white disabled:cursor-not-allowed disabled:opacity-40"
+    : "inline-flex h-9 items-center justify-center gap-1 rounded-lg border border-line bg-white px-2.5 text-xs font-semibold text-muted transition hover:border-brand hover:text-brand disabled:cursor-not-allowed disabled:opacity-40";
+
+  const pageInputClass = immersive
+    ? "h-9 w-14 rounded-lg border border-white/15 bg-white/10 px-2 text-center text-xs font-semibold text-white outline-none focus:border-white/50"
+    : "h-9 w-14 rounded-lg border border-line bg-white px-2 text-center text-xs font-semibold outline-none focus:border-brand";
+
+  const offlineLabel =
+    offlineState === "ready"
+      ? "Offline ready"
+      : offlineState === "checking"
+        ? "Checking cache"
+        : "Online only";
+
+  const offlineBadgeClass = immersive
+    ? "bg-white/10 text-white/80"
+    : offlineState === "ready"
+      ? "bg-brand-soft text-brand"
+      : "bg-paper text-muted";
 
   return (
-    <div className="relative overflow-hidden rounded-2xl border border-line bg-white shadow-soft">
+    <div
+      ref={shellRef}
+      className={
+        immersive
+          ? "reader-immersive fixed inset-0 z-50 flex h-[100dvh] flex-col overflow-hidden text-white"
+          : "relative overflow-hidden rounded-2xl border border-line bg-white shadow-soft"
+      }
+    >
       {curtainVisible && (
         <div className={`reader-curtain ${curtainLeaving ? "leaving" : ""}`}>
           <div className="curtain-sparkles" aria-hidden="true">
@@ -329,8 +458,22 @@ export function PdfReader({
         </div>
       )}
 
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line px-3 py-2.5">
+      <div
+        className={`flex flex-wrap items-center justify-between gap-3 border-b px-3 py-2.5 ${
+          immersive ? "border-white/10 bg-[#101612]" : "border-line"
+        }`}
+      >
         <div className="flex items-center gap-1.5">
+          {immersive && (
+            <button
+              type="button"
+              onClick={() => void closeImmersive()}
+              className={controlClass}
+              aria-label="Close immersive reader"
+            >
+              <X size={16} />
+            </button>
+          )}
           <button
             type="button"
             onClick={() => goToPage(pageNumber - 1)}
@@ -347,10 +490,14 @@ export function PdfReader({
             value={pageNumber}
             onChange={(event) => goToPage(Number(event.target.value))}
             disabled={loading || !totalPages}
-            className="h-9 w-14 rounded-lg border border-line bg-white px-2 text-center text-xs font-semibold outline-none focus:border-brand"
+            className={pageInputClass}
             aria-label="Current page"
           />
-          <span className="text-xs text-muted">/ {totalPages || "…"}</span>
+          <span
+            className={`text-xs ${immersive ? "text-white/60" : "text-muted"}`}
+          >
+            / {totalPages || "…"}
+          </span>
           <button
             type="button"
             onClick={() => goToPage(pageNumber + 1)}
@@ -378,26 +525,25 @@ export function PdfReader({
             initialFavorite={isFavorite}
           />
           <span
-            className={`mr-1 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ${
-              offlineState === "ready"
-                ? "bg-brand-soft text-brand"
-                : "bg-paper text-muted"
-            }`}
+            className={`mr-1 inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-[10px] font-bold ${offlineBadgeClass}`}
+            title={offlineLabel}
           >
             {offlineState === "ready" ? (
               <CheckCircle2 size={12} />
             ) : (
               <WifiOff size={12} />
             )}
-            {offlineState === "ready"
-              ? "Offline ready"
-              : offlineState === "checking"
-                ? "Checking cache"
-                : "Online only"}
+            <span className={immersive ? "sr-only" : undefined}>
+              {offlineLabel}
+            </span>
           </span>
           <button
             type="button"
-            onClick={() => setZoom((value) => Math.max(0.5, Number((value - 0.1).toFixed(1))))}
+            onClick={() =>
+              setZoom((value) =>
+                clampReaderZoom(Number((value - 0.1).toFixed(1)))
+              )
+            }
             className={controlClass}
             aria-label="Zoom out"
           >
@@ -413,13 +559,21 @@ export function PdfReader({
           </button>
           <button
             type="button"
-            onClick={() => setZoom((value) => Math.min(3, Number((value + 0.1).toFixed(1))))}
+            onClick={() =>
+              setZoom((value) =>
+                clampReaderZoom(Number((value + 0.1).toFixed(1)))
+              )
+            }
             className={controlClass}
             aria-label="Zoom in"
           >
             <Plus size={14} />
           </button>
-          <span className="w-10 text-center text-[10px] font-semibold text-muted">
+          <span
+            className={`w-10 text-center text-[10px] font-semibold ${
+              immersive ? "text-white/60" : "text-muted"
+            }`}
+          >
             {Math.round(zoom * 100)}%
           </span>
           <button
@@ -435,10 +589,18 @@ export function PdfReader({
 
       <div
         ref={containerRef}
-        className="relative max-h-[calc(100vh-165px)] min-h-[60vh] overflow-auto bg-[#e8ebe4] p-4"
+        className={
+          immersive
+            ? "reader-immersive-viewport"
+            : "relative max-h-[calc(100vh-165px)] min-h-[60vh] overflow-auto bg-[#e8ebe4] p-4"
+        }
       >
         {loading && (
-          <div className="flex min-h-[50vh] items-center justify-center gap-2 text-sm text-muted">
+          <div
+            className={`flex min-h-[50vh] items-center justify-center gap-2 text-sm ${
+              immersive ? "text-white/70" : "text-muted"
+            }`}
+          >
             <LoaderCircle className="animate-spin" size={18} /> Loading PDF...
           </div>
         )}
@@ -456,7 +618,11 @@ export function PdfReader({
         />
       </div>
 
-      <div className="flex items-center justify-between gap-3 border-t border-line px-4 py-2 text-[11px] text-muted">
+      <div
+        className={`flex items-center justify-between gap-3 border-t px-4 py-2 text-[11px] ${
+          immersive ? "border-white/10 text-white/60" : "border-line text-muted"
+        }`}
+      >
         <span>
           {saving
             ? "Saving progress..."

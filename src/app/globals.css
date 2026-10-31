@@ -82,6 +82,28 @@ button { cursor: pointer; }
 .curtain-sparkles span:nth-child(6) { left: 62%; top: 82%; width: 3px; height: 3px; animation-delay: .7s; }
 .reader-page-enter { animation: reader-page-in .42s cubic-bezier(.2,.7,.3,1); }
 
+/* Immersive mobile PDF reader */
+.reader-immersive {
+  height: 100vh;
+  height: 100dvh;
+  background: #101612;
+  padding-top: env(safe-area-inset-top);
+  padding-right: env(safe-area-inset-right);
+  padding-bottom: env(safe-area-inset-bottom);
+  padding-left: env(safe-area-inset-left);
+}
+.reader-immersive .reader-curtain { border-radius: 0; }
+.reader-immersive-viewport {
+  position: relative;
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow: auto;
+  overscroll-behavior: contain;
+  background: #1a211c;
+  padding: 16px;
+}
+.reader-immersive-viewport canvas { display: block; }
+
 @keyframes curtain-float {
   0%, 100% { transform: translateY(0); }
   50% { transform: translateY(-7px); }

@@ -68,4 +68,5 @@ Planning estimate for the full roadmap: 20–32 working days. The local MVP come
 - Story Time ported from the Codex ZIP: story shelf, original/movie-inspired stories, editor, page reorder/delete, cover/page images, read-aloud, print/save PDF, saved progress, storybook transitions.
 - Optional AI story drafting endpoint added (DeepSeek/OpenAI-compatible); keys are now entered in admin Settings and encrypted with `SETTINGS_ENCRYPTION_KEY`.
 - Account security and settings complete: invitation-only family accounts, admin invite links (24 hours), temporary passwords with forced password change, manual reset links (1 hour), session-version revocation, reading preferences, data export/deletion, and an encrypted AI key with a per-user daily draft limit (default 10, configurable 1–100).
-- Next (Pass 2): bookmarks/favorites and notes, collections/tags, reader search/outline, email delivery/verification, RLS/private Blob hardening, Story Time offline caching.
+- Phase 2 bookmarks and favorites complete: one bookmark per page with optional notes, Pages/Favorites tabs on `/bookmarks`, card and reader favorites, immersive high-DPI mobile PDF reader with swipe/pinch/zoom, page query links, and export schema version 2.
+- Next: collections/tags, highlights, reader search/outline, email delivery/verification, RLS/private Blob hardening, Story Time offline caching.

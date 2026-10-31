@@ -19,7 +19,8 @@ A private, multi-user PDF library and family Story Time app. Sign in, upload and
 - Optional AI story drafting through any OpenAI-compatible API (DeepSeek by default), configured in admin Settings with an encrypted key and a per-user daily limit; parent review before saving.
 - PWA: installable app shell and offline reading for PDFs and opened stories.
 - Warm storybook opening curtain and page-turn transitions, with reduced-motion support.
-- Pass 2 bookmarks and favorites are still pending; saved pages, highlights, and notes are not implemented yet.
+- Page bookmarks with optional notes, whole-book/story favorites, and a dedicated Bookmarks page; JSON export includes bookmarks and favorites.
+- Mobile PDF reader: phone-sized screens auto-open an immersive fit-width view with high-DPI rendering, vertical scrolling, swipe page turns, and pinch/zoom.
 
 ## Stack
 
@@ -74,6 +75,8 @@ Requirements: Node.js 22.13+, a Postgres database, and a Vercel Blob token.
    npm.cmd run db:migrate
    ```
 
+   Migrations are additive; `0004_bookmarks_favorites.sql` adds the bookmarks table and favorite flags.
+
    Local Docker alternative:
 
    ```bash
@@ -119,7 +122,15 @@ Requirements: Node.js 22.13+, a Postgres database, and a Vercel Blob token.
 - Grant the owner/admin account with `npm.cmd run admin:grant -- <email>`. Admin-only Settings sections (Family and AI story drafts) are re-checked on the server.
 - Sessions are 30-day HS256 JWTs in an HttpOnly, SameSite=Lax cookie, Secure in production. Every authenticated data request compares the JWT session version with `users.session_version` in `getCurrentUser`; changing or resetting a password, or choosing **Sign out all devices**, increments it and invalidates older sessions.
 - Settings also provides reading preferences, data export, and account/content deletion.
-- Pass 2 bookmarks and favorites are still pending; saved pages, highlights, and notes are not implemented yet.
+- Data export includes books, stories, bookmarks, favorites, and reading preferences; account/content deletion removes bookmarks and favorites through database cascades.
+
+## Bookmarks, favorites, and mobile reader
+
+- In the PDF and Story readers, the bookmark control quick-saves the current page. There is one bookmark per user and page; clicking a filled bookmark can open the Bookmarks page or remove it.
+- Edit or clear a bookmark note (500 characters max) on **Bookmarks → Pages**. Bookmark links open `/reader/<id>?page=<n>` or `/story-time/<id>?page=<n>`; the page parameter is validated and clamped to the document.
+- Favorite whole books and stories with the heart on Library/Story Time cards and in both readers. Favorites appear under **Bookmarks → Favorites**.
+- On phones (coarse pointer, short viewport side 700px or less), PDFs open in an immersive full-viewport reader. It uses fit-width high-DPI rendering, scrolls tall pages vertically, turns one page on a horizontal swipe at fit, and supports pinch or button zoom from 0.5× to 3×. When zoomed beyond 1.05×, horizontal drags pan instead of paging; **Fit** restores swipe paging. Closing the reader returns to the normal view at the same page.
+- iPhone Safari may keep its own browser chrome even in immersive mode; Add to Home Screen for a fully chrome-free view. Phase 2 adds no environment variables.
 
 ## AI story drafts
 
@@ -149,6 +160,12 @@ Production env vars:
 
 Apply the schema from a trusted machine with `npm.cmd run db:migrate:prod` using those process env values. Deploy with `vercel --prod` or push to the connected GitHub repository.
 
+### Phase 2 rollout
+
+1. Run `npm.cmd run db:migrate:prod` with the production environment. Expect `0004_bookmarks_favorites.sql` to be applied, or skipped if it is already recorded in `schema_migrations`.
+2. Deploy after review.
+3. Smoke-test bookmark save/note/open/remove, favorites from cards and readers, and the mobile immersive swipe/pinch/fit flows with temporary data. Do not modify owner content. No new environment variables are required.
+
 ## PWA and offline
 
 - The service worker registers in production.
@@ -168,7 +185,7 @@ npm.cmd run lint
 npm.cmd run build
 ```
 
-The full local/live smoke covers invite-only sign-in, PDF upload/read/edit/delete, Story Time create/edit/cover/page images/read, and sign-out protection. Temporarily set `ALLOW_SIGNUPS=true` only when intentionally testing the closed signup path.
+The full local/live smoke covers invite-only sign-in, PDF upload/read/edit/delete, Story Time create/edit/cover/page images/read, bookmark save/note/open/remove, favorites from cards and readers, the mobile immersive swipe/pinch/fit flows, and sign-out protection. Temporarily set `ALLOW_SIGNUPS=true` only when intentionally testing the closed signup path.
 
 ## Docs
 

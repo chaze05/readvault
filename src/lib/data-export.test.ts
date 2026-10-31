@@ -16,6 +16,10 @@ vi.mock("./book-store", () => ({
   listBooks: vi.fn(),
 }));
 
+vi.mock("./bookmark-store", () => ({
+  listBookmarks: vi.fn(),
+}));
+
 vi.mock("./preferences", () => ({
   getPreferences: vi.fn(),
 }));
@@ -45,11 +49,14 @@ import {
   BlobClaimError,
 } from "./blob-claims";
 import { listBooks } from "./book-store";
+import { listBookmarks } from "./bookmark-store";
 import { query, withTransaction } from "./db";
 import {
+  buildUserExport,
   deleteAllUserContent,
   deleteUserAccount,
 } from "./data-export";
+import { getPreferences } from "./preferences";
 import { verifyPassword } from "./password";
 import { clearSessionCookie } from "./session-cookies";
 import { findPasswordHashById, findUserById } from "./users";
@@ -98,6 +105,21 @@ const pageRow = {
   image_alt: null,
 };
 
+const bookmark = {
+  id: "bookmark-1",
+  kind: "book" as const,
+  targetId: "book-1",
+  title: "A Book",
+  pageNumber: 2,
+  note: "Keep going",
+  pageCount: 10,
+  author: "An Author",
+  coverColor: "#315b45",
+  coverImageUrl: "",
+  createdAt: "2026-01-02T00:00:00.000Z",
+  updatedAt: "2026-01-03T00:00:00.000Z",
+};
+
 const user = {
   id: "user-1",
   email: "person@example.com",
@@ -124,6 +146,66 @@ function mockUserContent() {
     return { rows: [] };
   }) as never);
 }
+
+describe("buildUserExport", () => {
+  beforeEach(() => {
+    vi.resetAllMocks();
+    vi.mocked(listBooks).mockResolvedValue([{ ...book, isFavorite: true }]);
+    vi.mocked(listBookmarks).mockResolvedValue([bookmark]);
+    vi.mocked(getPreferences).mockResolvedValue({
+      pdfZoom: 125,
+      storyTextSize: "large",
+      reduceMotion: true,
+    });
+    vi.mocked(query).mockImplementation((async (text: string) => {
+      if (text.includes("from public.users")) {
+        return {
+          rows: [
+            {
+              id: "user-1",
+              email: "person@example.com",
+              created_at: "2026-01-01T00:00:00.000Z",
+            },
+          ],
+        };
+      }
+      if (text.includes("from public.stories s")) {
+        return { rows: [storyRow] };
+      }
+      if (text.includes("from public.story_pages p")) {
+        return { rows: [pageRow] };
+      }
+      return { rows: [] };
+    }) as never);
+  });
+
+  it("loads bookmarks and favorite flags into schema version 2", async () => {
+    const document = await buildUserExport("user-1");
+
+    expect(document?.schemaVersion).toBe(2);
+    expect(listBookmarks).toHaveBeenCalledWith("user-1");
+    expect(document?.books[0]).toMatchObject({
+      id: "book-1",
+      isFavorite: true,
+    });
+    expect(document?.stories[0]).toMatchObject({
+      id: "story-1",
+      isFavorite: false,
+    });
+    expect(document?.bookmarks).toEqual([
+      {
+        id: "bookmark-1",
+        kind: "book",
+        targetId: "book-1",
+        title: "A Book",
+        pageNumber: 2,
+        note: "Keep going",
+        createdAt: "2026-01-02T00:00:00.000Z",
+        updatedAt: "2026-01-03T00:00:00.000Z",
+      },
+    ]);
+  });
+});
 
 describe("deleteAllUserContent", () => {
   beforeEach(() => {

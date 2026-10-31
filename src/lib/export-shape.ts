@@ -1,7 +1,15 @@
 import type { UserPreferences } from "./preferences";
-import type { Book, BookStatus, Story, StoryStatus, StoryType } from "./types";
+import type {
+  Book,
+  BookmarkItem,
+  BookmarkKind,
+  BookStatus,
+  Story,
+  StoryStatus,
+  StoryType,
+} from "./types";
 
-export const EXPORT_SCHEMA_VERSION = 1;
+export const EXPORT_SCHEMA_VERSION = 2;
 
 export interface ExportAccount {
   id: string;
@@ -21,6 +29,7 @@ export interface ExportBook {
   currentPage: number;
   status: BookStatus;
   coverColor: string;
+  isFavorite: boolean;
   createdAt: string;
   updatedAt: string;
 }
@@ -44,7 +53,19 @@ export interface ExportStory {
   status: StoryStatus;
   pageCount: number;
   currentPage: number;
+  isFavorite: boolean;
   pages: ExportStoryPage[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ExportBookmark {
+  id: string;
+  kind: BookmarkKind;
+  targetId: string;
+  title: string;
+  pageNumber: number;
+  note: string;
   createdAt: string;
   updatedAt: string;
 }
@@ -56,6 +77,7 @@ export interface ExportDocument {
   preferences: UserPreferences;
   books: ExportBook[];
   stories: ExportStory[];
+  bookmarks: ExportBookmark[];
   blobUrls: string[];
 }
 
@@ -64,6 +86,7 @@ export interface ExportSource {
   preferences: UserPreferences;
   books: Book[];
   stories: Story[];
+  bookmarks: BookmarkItem[];
 }
 
 function exportBook(book: Book): ExportBook {
@@ -79,6 +102,7 @@ function exportBook(book: Book): ExportBook {
     currentPage: book.currentPage,
     status: book.status,
     coverColor: book.coverColor,
+    isFavorite: book.isFavorite,
     createdAt: book.createdAt,
     updatedAt: book.updatedAt,
   };
@@ -106,9 +130,23 @@ function exportStory(story: Story): ExportStory {
     status: story.status,
     pageCount: story.pageCount,
     currentPage: story.currentPage,
+    isFavorite: story.isFavorite,
     pages: (story.pages ?? []).map(exportStoryPage),
     createdAt: story.createdAt,
     updatedAt: story.updatedAt,
+  };
+}
+
+function exportBookmark(bookmark: BookmarkItem): ExportBookmark {
+  return {
+    id: bookmark.id,
+    kind: bookmark.kind,
+    targetId: bookmark.targetId,
+    title: bookmark.title,
+    pageNumber: bookmark.pageNumber,
+    note: bookmark.note,
+    createdAt: bookmark.createdAt,
+    updatedAt: bookmark.updatedAt,
   };
 }
 
@@ -137,6 +175,7 @@ export function buildExportDocument({
   preferences,
   books,
   stories,
+  bookmarks,
 }: ExportSource): ExportDocument {
   return {
     schemaVersion: EXPORT_SCHEMA_VERSION,
@@ -153,6 +192,7 @@ export function buildExportDocument({
     },
     books: books.map(exportBook),
     stories: stories.map(exportStory),
+    bookmarks: bookmarks.map(exportBookmark),
     blobUrls: collectBlobUrls({ books, stories }),
   };
 }

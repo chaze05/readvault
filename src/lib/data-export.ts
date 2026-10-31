@@ -2,6 +2,7 @@ import { del } from "@vercel/blob";
 
 import { assertBlobUrlsClaimedByUser } from "./blob-claims";
 import { listBooks } from "./book-store";
+import { listBookmarks } from "./bookmark-store";
 import { getPreferences } from "./preferences";
 import { query, withTransaction } from "./db";
 import {
@@ -168,9 +169,10 @@ export async function buildUserExport(
     return null;
   }
 
-  const [preferences, content] = await Promise.all([
+  const [preferences, content, bookmarks] = await Promise.all([
     getPreferences(userId),
     loadUserContent(userId),
+    listBookmarks(userId),
   ]);
 
   return buildExportDocument({
@@ -182,6 +184,7 @@ export async function buildUserExport(
     preferences,
     books: content.books,
     stories: content.stories,
+    bookmarks,
   });
 }
 

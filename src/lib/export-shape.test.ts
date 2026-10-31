@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 
 import { buildExportDocument, collectBlobUrls } from "./export-shape";
-import type { Book, Story } from "./types";
+import type { Book, BookmarkItem, Story } from "./types";
 
 const preferences = {
   pdfZoom: 125 as const,
@@ -23,7 +23,7 @@ const books: Book[] = [
     currentPage: 12,
     status: "reading",
     coverColor: "#315b45",
-    isFavorite: false,
+    isFavorite: true,
     createdAt: "2026-01-02T03:04:05.000Z",
     updatedAt: "2026-02-03T04:05:06.000Z",
   },
@@ -42,7 +42,7 @@ const stories: Story[] = [
     status: "published",
     pageCount: 2,
     currentPage: 1,
-    isFavorite: false,
+    isFavorite: true,
     pages: [
       {
         id: "page-1",
@@ -64,6 +64,37 @@ const stories: Story[] = [
   },
 ];
 
+const bookmarks: BookmarkItem[] = [
+  {
+    id: "bookmark-1",
+    kind: "book",
+    targetId: "book-1",
+    title: "The Wind in the Willows",
+    pageNumber: 12,
+    note: "The riverbank scene.",
+    pageCount: 240,
+    author: "Kenneth Grahame",
+    coverColor: "#315b45",
+    coverImageUrl: "",
+    createdAt: "2026-05-06T07:08:09.000Z",
+    updatedAt: "2026-05-07T08:09:10.000Z",
+  },
+  {
+    id: "bookmark-2",
+    kind: "story",
+    targetId: "story-1",
+    title: "The Moon Garden",
+    pageNumber: 1,
+    note: "",
+    pageCount: 2,
+    author: "",
+    coverColor: "#315b45",
+    coverImageUrl: "https://blob.example/story-images/cover.png",
+    createdAt: "2026-05-08T09:10:11.000Z",
+    updatedAt: "2026-05-08T09:10:11.000Z",
+  },
+];
+
 const account = {
   id: "user-1",
   email: "person@example.com",
@@ -75,15 +106,16 @@ const account = {
 };
 
 describe("buildExportDocument", () => {
-  it("includes the schema version, account, preferences, books, stories, and pages", () => {
+  it("includes the schema version, account, preferences, books, stories, bookmarks, and pages", () => {
     const document = buildExportDocument({
       account,
       preferences,
       books,
       stories,
+      bookmarks,
     });
 
-    expect(document.schemaVersion).toBe(1);
+    expect(document.schemaVersion).toBe(2);
     expect(new Date(document.exportedAt).toISOString()).toBe(
       document.exportedAt
     );
@@ -110,6 +142,7 @@ describe("buildExportDocument", () => {
         currentPage: 12,
         status: "reading",
         coverColor: "#315b45",
+        isFavorite: true,
         createdAt: "2026-01-02T03:04:05.000Z",
         updatedAt: "2026-02-03T04:05:06.000Z",
       },
@@ -121,7 +154,30 @@ describe("buildExportDocument", () => {
       storyType: "original",
       coverImageUrl: "https://blob.example/story-images/cover.png",
       pageCount: 2,
+      isFavorite: true,
     });
+    expect(document.bookmarks).toEqual([
+      {
+        id: "bookmark-1",
+        kind: "book",
+        targetId: "book-1",
+        title: "The Wind in the Willows",
+        pageNumber: 12,
+        note: "The riverbank scene.",
+        createdAt: "2026-05-06T07:08:09.000Z",
+        updatedAt: "2026-05-07T08:09:10.000Z",
+      },
+      {
+        id: "bookmark-2",
+        kind: "story",
+        targetId: "story-1",
+        title: "The Moon Garden",
+        pageNumber: 1,
+        note: "",
+        createdAt: "2026-05-08T09:10:11.000Z",
+        updatedAt: "2026-05-08T09:10:11.000Z",
+      },
+    ]);
     expect(document.stories[0].pages).toEqual([
       {
         pageNumber: 1,
@@ -149,6 +205,7 @@ describe("buildExportDocument", () => {
       preferences,
       books,
       stories,
+      bookmarks,
     });
     const json = JSON.stringify(document);
 
@@ -156,6 +213,7 @@ describe("buildExportDocument", () => {
     expect(json).not.toContain("super-secret-token");
     expect(json).not.toContain("password");
     expect(json).not.toContain("sessionVersion");
+    expect(json).not.toContain("userId");
   });
 
   it("treats missing story pages as an empty list", () => {
@@ -164,6 +222,7 @@ describe("buildExportDocument", () => {
       preferences,
       books,
       stories: [{ ...stories[0], pages: undefined }],
+      bookmarks,
     });
 
     expect(document.stories[0].pages).toEqual([]);

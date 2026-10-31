@@ -21,7 +21,7 @@ ReadVault is a multi-user PDF library and family Story Time app. Accounts, metad
 - Postgres via `pg` (`src/lib/db.ts`). No SQLite. Use parameterized `$1` queries.
 - Auth: bcrypt passwords + `jose` JWTs. Session token code in `src/lib/session.ts` (edge-safe); cookie helpers in `src/lib/session-cookies.ts`.
 - Files: Vercel Blob only. Client uploads use `@vercel/blob/client`; server metadata is stored in Postgres.
-- PDF reader: `pdfjs-dist` dynamically imported in `src/components/pdf-reader.tsx`; worker copied by `scripts/copy-pdf-worker.mjs`.
+- PDF reader: `pdfjs-dist` dynamically imported in `src/components/pdf-reader.tsx`; worker copied by `scripts/copy-pdf-worker.mjs`. Mobile swipe/pinch classification lives in `src/lib/reader-gestures.ts`; keep it covered by tests.
 - PWA: `public/sw.js` registers in production only. Test with `npm run build && npm run start`, not `next dev`.
 - AI: `src/app/api/ai/story/route.ts` resolves the admin-saved key from `app_settings` (encrypted with `SETTINGS_ENCRYPTION_KEY`) and falls back to a server-only `AI_API_KEY`. Enter provider keys in admin Settings, never in client code, logs, or git.
 
@@ -47,6 +47,14 @@ ReadVault is a multi-user PDF library and family Story Time app. Accounts, metad
 - AI should return 4–8 short pages; no generated images (users upload their own).
 - Story reader uses the shared storybook curtain/page-turn classes and browser SpeechSynthesis with graceful fallback.
 
+## Bookmarks, favorites, and mobile reader rules
+
+- Bookmarks are page-number based and user-scoped: one bookmark per user/page, optional note up to 500 characters, page bounds enforced per book/story. Validate target ownership; deleting a book, story, or user cascades bookmarks. Favorites are whole-book/whole-story `is_favorite` flags.
+- Notes are edited only on `/bookmarks`; the readers provide quick-save, open, and remove. Keep bookmark/favorite controls out of anchor text and never nest interactive elements.
+- Export schema version 2 includes `isFavorite` on books/stories and `bookmarks` with kind, targetId, title, pageNumber, note, and timestamps. Never export passwords, tokens, session data, or another user's rows.
+- Mobile reader: phone-sized coarse-pointer screens (short side <=700px) auto-open immersive fit-width mode. Render high-DPI with a 2x cap, keep vertical scrolling native, page on one-finger horizontal swipes only at fit (>=50px and >=1.5x vertical), allow 0.5x-3x zoom, and pan instead of paging above 1.05x. iPhone Safari chrome may remain unless added to the Home Screen.
+- Phase 2 adds no environment variables. Apply `0004_bookmarks_favorites.sql` before deploying.
+
 ## Verification
 
 Before a milestone is done:
@@ -55,6 +63,7 @@ Before a milestone is done:
 2. `npm.cmd run lint`
 3. `npm.cmd run build`
 4. Smoke-test invitation-only sign-in → PDF upload/read/edit/delete → Story Time create/edit/images/read/delete → Settings password change/sign-out-all → sign-out protection. When account security changes, also verify admin invite/reset links, forced password change, single-use expiry, and session revocation.
-5. For PWA changes, test the production server and reload a cached book offline.
+5. For bookmark/favorite/mobile-reader changes, smoke-test quick-save/note/open/remove, favorites from cards and readers, and phone immersive swipe/pinch/fit with temporary data.
+6. For PWA changes, test the production server and reload a cached book offline.
 
 Commit small milestones. Do not commit `.env.local`, `.neon`, Blob tokens, or user data.
